@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-// Adjust this path if your image is located elsewhere
 import loginBg from '../../assets/loginBg.png';
 
 export default function LoginPage() {
@@ -10,83 +9,64 @@ export default function LoginPage() {
 
   const handleLogin = (e) => {
     e.preventDefault();
-    // TODO: Connect Firebase Authentication here later
-    console.log('Logging in with:', email);
-
-    // For now, successfully submitting the form routes you to the dashboard
     navigate('/');
   };
 
   return (
     <div
-      className="relative min-h-screen w-full flex flex-col items-center justify-center overflow-hidden bg-[#050B14] text-white"
+      className="relative min-h-screen w-full flex items-center justify-center bg-[#050B14]"
       style={{
         backgroundImage: `url(${loginBg})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
-        fontFamily: "'Google Sans', sans-serif"
+        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Courier New', monospace"
       }}
     >
-      {/* Floating Element 1 - Top Left */}
-      <div className="absolute top-20 left-10 md:left-32 bg-white/5 backdrop-blur-md px-8 py-6 rounded-[2rem] border border-white/10 transform -rotate-3 hover:rotate-0 transition-transform duration-300 hidden md:block">
-        <div className="text-sm tracking-widest text-blue-200/70 uppercase mb-1">System</div>
-        <div className="text-3xl font-medium tracking-tight text-blue-100">Lab Inventory</div>
-      </div>
+      {/* Background Dark & Blur Overlay */}
+      <div className="absolute inset-0 bg-[#050B14]/40 backdrop-blur-md z-0"></div>
 
-      {/* Floating Element 2 - Bottom Right */}
-      <div className="absolute bottom-24 right-10 md:right-32 bg-[#d4e157]/10 backdrop-blur-md px-8 py-6 rounded-[2rem] border border-[#d4e157]/20 transform rotate-6 hover:rotate-0 transition-transform duration-300 hidden md:block">
-        <div className="text-sm tracking-widest text-[#d4e157]/80 uppercase mb-1">Status</div>
-        <div className="text-3xl font-medium tracking-tight text-[#d4e157]">Secure</div>
-      </div>
+      {/* Clean, Flat Glass Card */}
+      <div className="z-10 w-full max-w-[420px] p-10 bg-gradient-to-br from-white/10 to-[#0a1128]/80 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl flex flex-col relative overflow-hidden">
 
-      {/* Center Focal Point: Login Form */}
-      <div className="z-10 w-full max-w-[440px] px-8 py-12 md:px-10 md:py-14 bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl flex flex-col items-center">
+        <div className="text-center mb-8 relative z-10">
+          <h1 className="text-4xl text-white font-semibold tracking-tight mb-2">
+            Sign in
+          </h1>
+          <p className="text-blue-100/50 text-sm">
+            Secure Admin Access
+          </p>
+        </div>
 
-        <h1 className="text-5xl md:text-6xl font-normal tracking-tight mb-4">
-          Sign In
-        </h1>
-        <p className="text-lg text-blue-100/70 mb-10 font-light text-center">
-          Access the admin portal
-        </p>
+        <form onSubmit={handleLogin} className="flex flex-col gap-5 relative z-10">
+          <input
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            style={{ fontFamily: 'inherit' }}
+            // Softened the focus ring to white/30 for harmony
+            className="w-full bg-black/40 border border-white/10 rounded-[1.2rem] px-6 py-4 text-white placeholder:text-white/30 focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/30 focus:bg-black/60 transition-all"
+            placeholder="Email address"
+          />
 
-        <form onSubmit={handleLogin} className="w-full flex flex-col gap-6">
+          <input
+            type="password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            style={{ fontFamily: 'inherit' }}
+            // Softened the focus ring to white/30 for harmony
+            className="w-full bg-black/40 border border-white/10 rounded-[1.2rem] px-6 py-4 text-white placeholder:text-white/30 focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/30 focus:bg-black/60 transition-all"
+            placeholder="Password"
+          />
 
-          {/* Email Input */}
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium text-blue-100 ml-4 tracking-wide">
-              Email address
-            </label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-black/20 border border-white/10 rounded-full px-6 py-5 text-lg text-white placeholder:text-white/30 focus:outline-none focus:border-[#d4e157] focus:bg-black/40 transition-all duration-300"
-              placeholder="name@institution.edu"
-            />
-          </div>
-
-          {/* Password Input */}
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium text-blue-100 ml-4 tracking-wide">
-              Password
-            </label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-black/20 border border-white/10 rounded-full px-6 py-5 text-lg text-white placeholder:text-white/30 focus:outline-none focus:border-[#d4e157] focus:bg-black/40 transition-all duration-300"
-              placeholder="••••••••"
-            />
-          </div>
-
-          {/* Large Primary Action Button */}
+          {/* Harmonized Glassmorphism Button */}
           <button
             type="submit"
-            className="mt-6 bg-[#d4e157] text-[#0a1128] hover:bg-[#cddc39] transition-colors duration-300 px-8 py-5 rounded-full text-xl font-medium shadow-[0_0_40px_rgba(212,225,87,0.15)] hover:shadow-[0_0_50px_rgba(212,225,87,0.3)] w-full"
+            style={{ fontFamily: 'inherit' }}
+            className="mt-4 bg-white/10 backdrop-blur-md border border-white/10 text-white hover:bg-white/20 px-6 py-4 rounded-[1.2rem] text-lg font-semibold transition-all duration-300 w-full"
           >
-            Authenticate
+            Continue
           </button>
         </form>
 
