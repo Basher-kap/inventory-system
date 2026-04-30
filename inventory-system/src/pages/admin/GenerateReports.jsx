@@ -40,7 +40,7 @@ export default function GenerateReports() {
   const footerText = isDarkMode ? 'text-white/20'                   : 'text-slate-300';
 
   const DropdownChevron = ({ isOpen }) => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+    <svg width="16" height="16" sm:width="20" sm:height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
       strokeLinecap="round" strokeLinejoin="round"
       className={`transition-transform duration-300 ${isOpen ? 'rotate-180 text-[#3852A4]' : chevron}`}>
       <path d="M6 9l6 6 6-6"/>
@@ -49,39 +49,39 @@ export default function GenerateReports() {
 
   return (
     <div
-      className={`h-screen w-full overflow-hidden p-6 md:p-12 lg:p-16 flex flex-col items-center relative transition-colors duration-500 ${pageBg}`}
+      className={`min-h-screen w-full overflow-y-auto p-4 sm:p-6 md:p-12 lg:p-16 flex flex-col items-center relative transition-colors duration-500 ${pageBg}`}
       style={{ fontFamily: "ui-monospace, monospace" }}
     >
       {/* Back */}
-      <button onClick={() => navigate('/dashboard')} className={`self-start text-lg transition-all mb-12 flex items-center gap-2 ${backBtn}`}>
-        <span className="text-2xl">←</span> Back to Dashboard
+      <button onClick={() => navigate('/dashboard')} className={`self-start text-base sm:text-lg transition-all mb-8 sm:mb-12 flex items-center gap-2 cursor-pointer ${backBtn}`}>
+        <span className="text-xl sm:text-2xl">←</span> Back to Dashboard
       </button>
 
       {/* Header */}
-      <div className="w-full max-w-6xl mb-12 text-left">
-        <h1 className="text-5xl font-bold tracking-tight mb-4">Generate Reports</h1>
-        <p className={`text-sm font-bold uppercase tracking-widest ${subText}`}>System Auditing & Exports</p>
+      <div className="w-full max-w-6xl mb-8 sm:mb-12 text-left">
+        <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-2 sm:mb-4">Generate Reports</h1>
+        <p className={`text-[10px] sm:text-sm font-bold uppercase tracking-widest ${subText}`}>System Auditing & Exports</p>
       </div>
 
       {/* Config Card */}
-      <div className={`w-full max-w-6xl p-12 backdrop-blur-3xl border rounded-[3rem] shadow-2xl ${cardBg}`}>
-        <form className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-end" onSubmit={(e) => e.preventDefault()}>
+      <div className={`w-full max-w-6xl p-6 sm:p-8 md:p-12 backdrop-blur-3xl border rounded-[2rem] sm:rounded-[3rem] shadow-2xl ${cardBg}`}>
+        <form className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-10 items-end" onSubmit={(e) => e.preventDefault()}>
 
           {/* Report Type Dropdown */}
           <div className="lg:col-span-5 relative" ref={reportRef}>
-            <label className={`text-xs font-bold uppercase tracking-[0.3em] mb-4 block ${labelText}`}>Report Category</label>
+            <label className={`text-[9px] sm:text-xs font-bold uppercase tracking-[0.3em] mb-2 sm:mb-4 block ml-2 sm:ml-4 ${labelText}`}>Report Category</label>
             <div
               onClick={() => setIsReportOpen(!isReportOpen)}
-              className={`w-full border rounded-3xl px-8 py-6 text-xl cursor-pointer transition-all flex justify-between items-center ${inputBg} ${isReportOpen ? 'border-[#3852A4] ring-1 ring-[#3852A4]/50' : ''}`}
+              className={`w-full border rounded-2xl sm:rounded-3xl px-4 sm:px-8 py-4 sm:py-6 text-sm sm:text-xl cursor-pointer transition-all flex justify-between items-center ${inputBg} ${isReportOpen ? 'border-[#3852A4] ring-1 ring-[#3852A4]/50' : ''}`}
             >
-              <span>{reportType}</span>
+              <span className="truncate mr-4">{reportType}</span>
               <DropdownChevron isOpen={isReportOpen} />
             </div>
             {isReportOpen && (
-              <div className={`absolute top-[calc(100%+10px)] left-0 w-full backdrop-blur-2xl border rounded-3xl overflow-hidden z-[80] shadow-2xl ${dropdownBg}`}>
+              <div className={`absolute top-[calc(100%+8px)] sm:top-[calc(100%+10px)] left-0 w-full backdrop-blur-2xl border rounded-2xl sm:rounded-3xl overflow-hidden z-[80] shadow-2xl ${dropdownBg}`}>
                 {reportOptions.map((opt) => (
                   <div key={opt} onClick={() => { setReportType(opt); setIsReportOpen(false); }}
-                    className={`px-8 py-5 text-lg cursor-pointer transition-all ${reportType === opt ? `font-bold ${dropActive}` : dropItem}`}>
+                    className={`px-4 sm:px-8 py-3 sm:py-5 text-sm sm:text-lg cursor-pointer transition-all ${reportType === opt ? `font-bold ${dropActive}` : dropItem}`}>
                     {opt}
                   </div>
                 ))}
@@ -91,19 +91,19 @@ export default function GenerateReports() {
 
           {/* Format Dropdown */}
           <div className="lg:col-span-4 relative" ref={formatRef}>
-            <label className={`text-xs font-bold uppercase tracking-[0.3em] mb-4 block ${labelText}`}>Export Format</label>
+            <label className={`text-[9px] sm:text-xs font-bold uppercase tracking-[0.3em] mb-2 sm:mb-4 block ml-2 sm:ml-4 ${labelText}`}>Export Format</label>
             <div
               onClick={() => setIsFormatOpen(!isFormatOpen)}
-              className={`w-full border rounded-3xl px-8 py-6 text-xl cursor-pointer transition-all flex justify-between items-center ${inputBg} ${isFormatOpen ? 'border-[#3852A4] ring-1 ring-[#3852A4]/50' : ''}`}
+              className={`w-full border rounded-2xl sm:rounded-3xl px-4 sm:px-8 py-4 sm:py-6 text-sm sm:text-xl cursor-pointer transition-all flex justify-between items-center ${inputBg} ${isFormatOpen ? 'border-[#3852A4] ring-1 ring-[#3852A4]/50' : ''}`}
             >
-              <span>{format}</span>
+              <span className="truncate mr-4">{format}</span>
               <DropdownChevron isOpen={isFormatOpen} />
             </div>
             {isFormatOpen && (
-              <div className={`absolute top-[calc(100%+10px)] left-0 w-full backdrop-blur-2xl border rounded-3xl overflow-hidden z-[80] shadow-2xl ${dropdownBg}`}>
+              <div className={`absolute top-[calc(100%+8px)] sm:top-[calc(100%+10px)] left-0 w-full backdrop-blur-2xl border rounded-2xl sm:rounded-3xl overflow-hidden z-[80] shadow-2xl ${dropdownBg}`}>
                 {formatOptions.map((opt) => (
                   <div key={opt} onClick={() => { setFormat(opt); setIsFormatOpen(false); }}
-                    className={`px-8 py-5 text-lg cursor-pointer transition-all ${format === opt ? `font-bold ${dropActive}` : dropItem}`}>
+                    className={`px-4 sm:px-8 py-3 sm:py-5 text-sm sm:text-lg cursor-pointer transition-all ${format === opt ? `font-bold ${dropActive}` : dropItem}`}>
                     {opt}
                   </div>
                 ))}
@@ -114,7 +114,7 @@ export default function GenerateReports() {
           {/* Download Button */}
           <div className="lg:col-span-3">
             <button type="submit"
-              className={`w-full backdrop-blur-md border py-6 rounded-3xl font-bold text-xl transition-all shadow-lg active:scale-95 cursor-pointer ${downloadBtn}`}>
+              className={`w-full backdrop-blur-md border py-4 sm:py-6 rounded-2xl sm:rounded-3xl font-bold text-base sm:text-xl transition-all shadow-lg active:scale-95 cursor-pointer ${downloadBtn}`}>
               Download
             </button>
           </div>
@@ -122,8 +122,8 @@ export default function GenerateReports() {
       </div>
 
       {/* Footer */}
-      <div className="mt-auto pb-10">
-        <p className={`text-xs font-bold uppercase tracking-[0.4em] ${footerText}`}>
+      <div className="mt-12 pb-6">
+        <p className={`text-[9px] sm:text-xs font-bold uppercase tracking-[0.4em] text-center ${footerText}`}>
           End of Session Audits Available
         </p>
       </div>
