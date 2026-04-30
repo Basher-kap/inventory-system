@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, addDoc, onSnapshot, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase/firebase.config';
@@ -13,14 +13,29 @@ export default function AddEquipmentPage() {
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState('');
 
-  // UI States: Toast and Modal
+  // UI States: Toast, Modal, and the Custom Dropdown[cite: 22, 26]
   const [toast, setToast] = useState({ show: false, message: '' });
   const [deleteModal, setDeleteModal] = useState({ show: false, itemId: null });
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  const dropdownRef = useRef(null);
+  const categories = ["Electronics", "Glassware", "Hardware", "Peripherals"];
 
   const showToast = (message) => {
     setToast({ show: true, message });
     setTimeout(() => setToast({ show: false, message: '' }), 3000);
   };
+
+  // Close dropdown when clicking outside[cite: 22]
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const q = collection(db, 'equipment');
@@ -40,7 +55,7 @@ export default function AddEquipmentPage() {
           name, category, assetTag, status: 'available', dateAdded: new Date().toISOString()
         });
       }
-      showToast(`Added ${quantity} item(s).`);
+      showToast(`Added ${quantity} items.`);
       setName(''); setQuantity(1);
     } catch (error) { showToast("Error adding equipment."); }
     finally { setIsLoading(false); }
@@ -67,14 +82,14 @@ export default function AddEquipmentPage() {
   return (
     <div className="min-h-screen w-full bg-[#050B14] text-white p-6 md:p-12 lg:p-16 flex flex-col items-center overflow-y-auto relative" style={{ fontFamily: "ui-monospace, monospace" }}>
 
-      {/* --- MINIMAL TOAST (No Dot) --- */}
+      {/* --- MINIMAL TOAST[cite: 22, 26] --- */}
       <div className={`fixed bottom-10 right-10 z-[60] transition-all duration-500 transform ${toast.show ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0 pointer-events-none'}`}>
         <div className="px-8 py-4 rounded-2xl bg-white/10 backdrop-blur-2xl border border-white/10 shadow-2xl">
           <span className="text-xs font-black tracking-[0.3em] uppercase text-white/80">{toast.message}</span>
         </div>
       </div>
 
-      {/* --- SUBTLE DELETE MODAL --- */}
+      {/* --- SUBTLE DELETE MODAL[cite: 22, 26] --- */}
       {deleteModal.show && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-6">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setDeleteModal({ show: false, itemId: null })}></div>
@@ -89,12 +104,12 @@ export default function AddEquipmentPage() {
         </div>
       )}
 
-      {/* Back Navigation[cite: 21] */}
+      {/* Back Navigation */}
       <button onClick={() => navigate('/dashboard')} className="self-start text-lg text-white/40 hover:text-white transition-all mb-12 flex items-center gap-2">
         <span className="text-2xl">←</span> Back to Dashboard
       </button>
 
-      {/* Add Form Card[cite: 21, 22] */}
+      {/* Add Form Card[cite: 21, 22, 26] */}
       <div className="w-full max-w-6xl p-12 bg-white/[0.03] backdrop-blur-3xl border border-white/10 rounded-[3rem] mb-16 shadow-2xl">
         <h1 className="text-5xl font-bold tracking-tight mb-4">Add Equipment</h1>
         <p className="text-xl text-blue-100/40 mb-12">Register and track new lab assets.</p>
@@ -105,19 +120,34 @@ export default function AddEquipmentPage() {
             <input type="text" required value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-3xl px-8 py-6 text-xl focus:border-[#3852A4] transition-all outline-none placeholder:text-white/10" placeholder="e.g. Epson Projector X1" />
           </div>
 
-          <div className="lg:col-span-3 relative">
+          {/* --- CUSTOM DESIGNED DROPDOWN --- */}
+          <div className="lg:col-span-3 relative" ref={dropdownRef}>
             <label className="text-xs font-bold text-white/30 uppercase tracking-[0.3em] mb-4 block">Category</label>
-            <div className="relative">
-              <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-3xl px-8 py-6 text-xl appearance-none cursor-pointer focus:border-[#3852A4] outline-none transition-all">
-                <option value="Electronics">Electronics</option>
-                <option value="Glassware">Glassware</option>
-                <option value="Hardware">Hardware</option>
-                <option value="Peripherals">Peripherals</option>
-              </select>
-              <div className="absolute right-8 top-1/2 -translate-y-1/2 pointer-events-none text-white/40">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-              </div>
+            <div
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              className={`w-full bg-black/40 border rounded-3xl px-8 py-6 text-xl cursor-pointer transition-all flex justify-between items-center ${isDropdownOpen ? 'border-[#3852A4] ring-1 ring-[#3852A4]/50' : 'border-white/10'}`}
+            >
+              <span className={category ? 'text-white' : 'text-white/10'}>{category}</span>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform duration-300 ${isDropdownOpen ? 'rotate-180 text-[#3852A4]' : 'text-white/40'}`}><path d="M6 9l6 6 6-6"/></svg>
             </div>
+
+            {/* Custom Options Menu (The design improvement)[cite: 26] */}
+            {isDropdownOpen && (
+              <div className="absolute top-[calc(100%+10px)] left-0 w-full bg-black/80 backdrop-blur-2xl border border-white/10 rounded-3xl overflow-hidden z-[80] shadow-2xl animate-in fade-in slide-in-from-top-2">
+                {categories.map((cat) => (
+                  <div
+                    key={cat}
+                    onClick={() => {
+                      setCategory(cat);
+                      setIsDropdownOpen(false);
+                    }}
+                    className={`px-8 py-4 text-lg cursor-pointer transition-all hover:bg-white/10 ${category === cat ? 'text-[#3B82F6] bg-[#3B82F6]/5 font-bold' : 'text-white/60'}`}
+                  >
+                    {cat}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="lg:col-span-2">
@@ -133,7 +163,7 @@ export default function AddEquipmentPage() {
         </form>
       </div>
 
-      {/* Inventory List Table[cite: 21, 22] */}
+      {/* Inventory List Table[cite: 21, 22, 26] */}
       <div className="w-full max-w-6xl bg-white/[0.02] border border-white/10 rounded-[3rem] overflow-hidden shadow-xl">
         <div className="p-10 border-b border-white/10 bg-white/5 flex justify-between items-center">
           <h2 className="text-2xl font-bold tracking-tight">Active Inventory</h2>

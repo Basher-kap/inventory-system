@@ -1,64 +1,121 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { db } from '../../firebase/firebase.config';
 
 export default function ReviewBorrowLogs() {
   const navigate = useNavigate();
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Placeholder data for the UI
-  const mockLogs = [
-    { id: 'LOG-001', student: '2023-0142 (Bayon-on, C.)', item: 'Microscope X1', date: 'Oct 24, 2026', status: 'Active' },
-    { id: 'LOG-002', student: '2022-0991 (Smith, J.)', item: 'Epson Projector', date: 'Oct 23, 2026', status: 'Returned' },
-    { id: 'LOG-003', student: '2024-1102 (Doe, A.)', item: 'Arduino Starter Kit', date: 'Oct 20, 2026', status: 'Overdue' },
-  ];
+  // Real-time listener for the 'logs' collection
+  useEffect(() => {
+    // We order by date so the newest activity stays at the top
+    const q = query(collection(db, 'logs'), orderBy('dateBorrowed', 'desc'));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const logsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setLogs(logsData);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching logs:", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Calculate live numbers for the header
+  const activeCount = logs.filter(log => log.status === 'Active').length;
 
   return (
     <div
-      className="min-h-screen w-full bg-[#050B14] text-white p-6 md:p-12 flex flex-col items-center"
-      style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Courier New', monospace" }}
+      className="min-h-screen w-full bg-[#050B14] text-white p-6 md:p-12 lg:p-16 flex flex-col items-center overflow-y-auto"
+      style={{ fontFamily: "ui-monospace, monospace" }}
     >
-      <div className="w-full max-w-5xl">
-        <button
-          onClick={() => navigate('/dashboard')}
-          className="text-blue-100/50 hover:text-white transition-colors mb-8"
-        >
-          ← Back to Dashboard
-        </button>
 
-        <h1 className="text-3xl font-bold tracking-tight mb-2">Borrow Logs</h1>
-        <p className="text-blue-100/50 mb-8">Review active and past equipment loans.</p>
+      {/* Back Navigation[cite: 22] */}
+      <button
+        onClick={() => navigate('/dashboard')}
+        className="self-start text-lg text-white/40 hover:text-white transition-all mb-12 flex items-center gap-2"
+      >
+        <span className="text-2xl">←</span> Back to Dashboard
+      </button>
 
-        <div className="w-full bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2rem] shadow-2xl overflow-hidden">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-white/10 bg-white/5">
-                <th className="p-5 text-sm tracking-widest text-blue-100/70 font-semibold uppercase">Log ID</th>
-                <th className="p-5 text-sm tracking-widest text-blue-100/70 font-semibold uppercase">Borrower</th>
-                <th className="p-5 text-sm tracking-widest text-blue-100/70 font-semibold uppercase">Item</th>
-                <th className="p-5 text-sm tracking-widest text-blue-100/70 font-semibold uppercase">Date Borrowed</th>
-                <th className="p-5 text-sm tracking-widest text-blue-100/70 font-semibold uppercase">Status</th>
+      {/* Page Header[cite: 19, 22] */}
+      <div className="w-full max-w-6xl mb-12 text-left">
+        <h1 className="text-5xl font-bold tracking-tight mb-4">Borrow Logs</h1>
+        <p className="text-xl text-blue-100/40 uppercase tracking-widest text-sm font-bold">
+          Live Activity Feed
+        </p>
+      </div>
+
+      {/* --- LIVE STATS BAR --- */}
+      <div className="w-full max-w-6xl grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div className="bg-white/[0.03] border border-white/10 p-8 rounded-[2rem] flex justify-between items-center">
+          <span className="text-white/40 font-bold uppercase tracking-widest text-xs">Currently Out</span>
+          <span className="text-4xl font-bold text-[#3B82F6]">{activeCount}</span>
+        </div>
+        <div className="bg-white/[0.03] border border-white/10 p-8 rounded-[2rem] flex justify-between items-center">
+          <span className="text-white/40 font-bold uppercase tracking-widest text-xs">Total Records</span>
+          <span className="text-4xl font-bold">{logs.length}</span>
+        </div>
+      </div>
+
+      {/* --- LOGS TABLE[cite: 22, 23] --- */}
+      <div className="w-full max-w-6xl bg-white/[0.02] border border-white/10 rounded-[3rem] overflow-hidden shadow-xl">
+        <table className="w-full text-left">
+          <thead>
+            <tr className="text-[10px] font-bold text-white/20 uppercase tracking-[0.3em] bg-white/5">
+              <th className="px-10 py-8">Log ID</th>
+              <th className="px-10 py-8">Borrower Info</th>
+              <th className="px-10 py-8">Asset Name</th>
+              <th className="px-10 py-8">Timestamp</th>
+              <th className="px-10 py-8 text-right">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/5">
+            {loading ? (
+              <tr>
+                <td colSpan="5" className="p-20 text-center text-white/20 animate-pulse">Initializing Live Stream...</td>
               </tr>
-            </thead>
-            <tbody>
-              {mockLogs.map((log, index) => (
-                <tr key={index} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                  <td className="p-5 text-white/80">{log.id}</td>
-                  <td className="p-5">{log.student}</td>
-                  <td className="p-5 text-white/80">{log.item}</td>
-                  <td className="p-5 text-white/60">{log.date}</td>
-                  <td className="p-5">
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                      log.status === 'Active' ? 'bg-[#3B82F6]/20 text-[#3B82F6]' :
-                      log.status === 'Returned' ? 'bg-green-500/20 text-green-400' :
-                      'bg-red-500/20 text-red-400'
+            ) : logs.length === 0 ? (
+              <tr>
+                <td colSpan="5" className="p-20 text-center text-white/20">No borrowing activity recorded yet.</td>
+              </tr>
+            ) : (
+              logs.map((log) => (
+                <tr key={log.id} className="hover:bg-white/[0.03] transition-all">
+                  <td className="px-10 py-8 text-white/40 font-medium tracking-wider text-xs">
+                    {log.id.substring(0, 8).toUpperCase()}
+                  </td>
+                  <td className="px-10 py-8 text-xl font-bold">
+                    {log.studentName} <br/>
+                    <span className="text-xs text-white/30 font-normal tracking-normal">{log.studentId}</span>
+                  </td>
+                  <td className="px-10 py-8 text-white/80">
+                    {log.itemName}
+                  </td>
+                  <td className="px-10 py-8 text-white/40 font-medium text-sm">
+                    {log.dateBorrowed}
+                  </td>
+                  <td className="px-10 py-8 text-right">
+                    <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tighter ${
+                      log.status === 'Active' ? 'bg-[#3B82F6]/10 text-[#3B82F6]' :
+                      log.status === 'Returned' ? 'bg-green-500/10 text-green-400' :
+                      'bg-red-500/10 text-red-400'
                     }`}>
                       {log.status}
                     </span>
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
