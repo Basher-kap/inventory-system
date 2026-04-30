@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../../firebase/firebase.config';
 import { useTheme } from '../../context/ThemeContext';
 
 export default function GenerateReports() {
@@ -16,6 +18,14 @@ export default function GenerateReports() {
   const formatRef = useRef(null);
   const formatOptions = ["CSV (Spreadsheet)", "PDF Document"];
 
+  const [isLoading, setIsLoading] = useState(false);
+  const [toast, setToast] = useState({ show: false, message: '' });
+
+  const showToast = (message) => {
+    setToast({ show: true, message });
+    setTimeout(() => setToast({ show: false, message: '' }), 3000);
+  };
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (reportRef.current && !reportRef.current.contains(event.target)) setIsReportOpen(false);
@@ -24,6 +34,139 @@ export default function GenerateReports() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // --- REPORT GENERATION LOGIC ---
+  const handleGenerate = async (e) => {
+    e.preventDefault();
+    setIsLoading(true);
+    showToast("Compiling data...");
+
+    try {
+      let headers = [];
+      let rows = [];
+      let reportTitle = reportType;
+
+      // 1. FETCH & FORMAT DATA BASED ON REPORT TYPE
+      if (reportType === "Current Inventory Status") {
+        const snap = await getDocs(collection(db, 'equipment'));
+        headers = ["Asset Tag", "Equipment Name", "Category", "Status", "Tracking", "Available Qty", "Total Qty"];
+        snap.forEach(doc => {
+          const data = doc.data();
+          rows.push([
+            data.assetTag || 'N/A',
+            data.name || 'N/A',
+            data.category || 'N/A',
+            (data.status || 'N/A').toUpperCase(),
+            data.trackingType || 'N/A',
+            data.availableQuantity ?? (data.status === 'available' ? 1 : 0),
+            data.totalQuantity ?? 1
+          ]);
+        });
+      }
+      else if (reportType === "Equipment in Maintenance") {
+        const snap = await getDocs(collection(db, 'equipment'));
+        headers = ["Asset Tag", "Equipment Name", "Category", "Date Added"];
+        snap.forEach(doc => {
+          const data = doc.data();
+          if (data.status === 'maintenance') {
+            rows.push([
+              data.assetTag || 'N/A',
+              data.name || 'N/A',
+              data.category || 'N/A',
+              data.dateAdded ? new Date(data.dateAdded).toLocaleDateString() : 'N/A'
+            ]);
+          }
+        });
+        if (rows.length === 0) rows.push(["No equipment currently in maintenance", "", "", ""]);
+      }
+      else if (reportType === "Monthly Borrowing History") {
+        const snap = await getDocs(collection(db, 'logs'));
+        headers = ["Date Borrowed", "Borrower", "Role", "Item Name", "Qty", "Status", "Date Returned"];
+
+        // Optional: Filter for current month. Currently fetching all for a complete audit log.
+        snap.forEach(doc => {
+          const data = doc.data();
+          rows.push([
+            data.dateBorrowed || 'N/A',
+            data.borrowerName || data.studentName || 'N/A',
+            data.borrowerRole || 'N/A',
+            data.itemName || 'N/A',
+            data.quantityBorrowed || 1,
+            (data.status || 'N/A').toUpperCase(),
+            data.dateReturned || 'Pending'
+          ]);
+        });
+
+        // Sort by date borrowed (newest first) if possible
+        rows.sort((a, b) => new Date(b[0]) - new Date(a[0]));
+      }
+
+      // 2. EXPORT AS CSV
+      if (format === "CSV (Spreadsheet)") {
+        const csvContent = [
+          headers.join(","),
+          ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+        ].join("\n");
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `${reportTitle.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast("CSV Downloaded.");
+      }
+
+      // 3. EXPORT AS PDF (Via Print Dialog)
+      else if (format === "PDF Document") {
+        const printWindow = window.open('', '_blank');
+
+        const htmlContent = `
+          <html>
+            <head>
+              <title>${reportTitle}</title>
+              <style>
+                body { font-family: 'Courier New', Courier, monospace; padding: 40px; color: #1a202c; }
+                h1 { text-align: center; font-size: 24px; text-transform: uppercase; letter-spacing: 2px; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 40px; }
+                table { w-full; width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
+                th, td { border: 1px solid #cbd5e1; padding: 12px 15px; text-align: left; }
+                th { background-color: #f8fafc; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
+                tr:nth-child(even) { background-color: #f8fafc; }
+                .footer { margin-top: 40px; text-align: right; font-size: 10px; color: #64748b; text-transform: uppercase; }
+              </style>
+            </head>
+            <body>
+              <h1>${reportTitle}</h1>
+              <table>
+                <thead>
+                  <tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>
+                </thead>
+                <tbody>
+                  ${rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}
+                </tbody>
+              </table>
+              <div class="footer">Generated on: ${new Date().toLocaleString()} | Lab Inventory System</div>
+              <script>
+                window.onload = function() { window.print(); window.close(); }
+              </script>
+            </body>
+          </html>
+        `;
+
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+        showToast("PDF Print Dialog Opened.");
+      }
+
+    } catch (error) {
+      console.error("Report generation error:", error);
+      showToast("Error generating report.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const pageBg     = isDarkMode ? 'bg-[#050B14] text-white'         : 'bg-slate-50 text-slate-900';
   const backBtn    = isDarkMode ? 'text-white/40 hover:text-white'  : 'text-slate-400 hover:text-slate-900';
@@ -52,6 +195,13 @@ export default function GenerateReports() {
       className={`min-h-screen w-full overflow-y-auto p-4 sm:p-6 md:p-12 lg:p-16 flex flex-col items-center relative transition-colors duration-500 ${pageBg}`}
       style={{ fontFamily: "ui-monospace, monospace" }}
     >
+      {/* Toast Notification */}
+      <div className={`fixed bottom-4 sm:bottom-10 right-4 sm:right-10 z-[60] transition-all duration-500 transform ${toast.show ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0 pointer-events-none'}`}>
+        <div className={`px-6 sm:px-8 py-3 sm:py-4 rounded-xl sm:rounded-2xl backdrop-blur-2xl border shadow-2xl ${isDarkMode ? 'bg-white/10 border-white/10 text-white' : 'bg-slate-900 border-slate-800 text-white'}`}>
+          <span className="text-[10px] sm:text-xs font-black tracking-[0.3em] uppercase opacity-80">{toast.message}</span>
+        </div>
+      </div>
+
       {/* Back */}
       <button onClick={() => navigate('/dashboard')} className={`self-start text-base sm:text-lg transition-all mb-8 sm:mb-12 flex items-center gap-2 cursor-pointer ${backBtn}`}>
         <span className="text-xl sm:text-2xl">←</span> Back to Dashboard
@@ -65,7 +215,7 @@ export default function GenerateReports() {
 
       {/* Config Card */}
       <div className={`w-full max-w-6xl p-6 sm:p-8 md:p-12 backdrop-blur-3xl border rounded-[2rem] sm:rounded-[3rem] shadow-2xl ${cardBg}`}>
-        <form className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-10 items-end" onSubmit={(e) => e.preventDefault()}>
+        <form className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-10 items-end" onSubmit={handleGenerate}>
 
           {/* Report Type Dropdown */}
           <div className="lg:col-span-5 relative" ref={reportRef}>
@@ -113,9 +263,9 @@ export default function GenerateReports() {
 
           {/* Download Button */}
           <div className="lg:col-span-3">
-            <button type="submit"
-              className={`w-full backdrop-blur-md border py-4 sm:py-6 rounded-2xl sm:rounded-3xl font-bold text-base sm:text-xl transition-all shadow-lg active:scale-95 cursor-pointer ${downloadBtn}`}>
-              Download
+            <button type="submit" disabled={isLoading}
+              className={`w-full backdrop-blur-md border py-4 sm:py-6 rounded-2xl sm:rounded-3xl font-bold text-base sm:text-xl transition-all shadow-lg active:scale-95 cursor-pointer ${downloadBtn} ${isLoading ? 'opacity-50' : ''}`}>
+              {isLoading ? "Generating..." : "Download"}
             </button>
           </div>
         </form>

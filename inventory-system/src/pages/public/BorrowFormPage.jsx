@@ -33,6 +33,8 @@ export default function BorrowFormPage() {
   const [success, setSuccess] = useState(false);
   const [confirmationTime, setConfirmationTime] = useState('');
 
+  const [isViewOnly, setIsViewOnly] = useState(false);
+
   const dismissKeyboard = () => {
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
@@ -72,7 +74,6 @@ export default function BorrowFormPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // --- ENHANCED VALIDATION LOGIC[cite: 15] ---
     if (!formData.fullName.trim()) {
       alert("Please enter your full name.");
       return;
@@ -174,7 +175,7 @@ export default function BorrowFormPage() {
       <div className={`w-full max-w-xl p-6 sm:p-8 md:p-12 border rounded-[2rem] sm:rounded-[3rem] backdrop-blur-3xl transition-all ${cardBg}`}>
 
         {success ? (
-          <div className="text-center py-8 sm:py-10 animate-in fade-in zoom-in duration-500">
+          <div className="text-center py-4 sm:py-6 animate-in fade-in zoom-in duration-500">
             <div className="mx-auto w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-[#3852A4]/20 text-[#3852A4] flex items-center justify-center mb-6 sm:mb-8">
               <svg width="32" height="32" sm:width="40" sm:height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="20 6 9 17 4 12"></polyline>
@@ -183,28 +184,38 @@ export default function BorrowFormPage() {
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 tracking-tight">Checkout Confirmed</h2>
             <p className="opacity-50 leading-relaxed text-base sm:text-lg mb-8">Your request has been recorded. Please take a screenshot for your records.</p>
 
-            <div className="pt-8 border-t border-white/5 flex flex-col items-center gap-2">
+            <div className="pt-8 border-t border-white/5 flex flex-col items-center gap-2 mb-8">
               <span className={`text-[9px] sm:text-[10px] font-black uppercase tracking-[0.3em] ${isDarkMode ? 'text-white/20' : 'text-slate-300'}`}>Transaction Verified</span>
               <span className={`text-xs sm:text-sm font-bold tracking-widest ${isDarkMode ? 'text-blue-400/60' : 'text-[#3852A4]/60'}`}>
                 {confirmationTime}
               </span>
             </div>
+
+            <button
+              onClick={() => { setSuccess(false); setIsViewOnly(true); }}
+              className={`text-[10px] sm:text-xs font-bold uppercase tracking-[0.2em] transition-all flex items-center justify-center w-full p-4 rounded-2xl border ${isDarkMode ? 'border-white/10 text-white/50 hover:text-white hover:bg-white/5' : 'border-slate-200 text-slate-400 hover:text-slate-900 hover:bg-slate-50'}`}
+            >
+              ← Review Submitted Form
+            </button>
           </div>
         ) : (
           <>
             <div className="mb-8 sm:mb-10 text-center md:text-left">
-              <p className="text-[#3852A4] font-black uppercase tracking-widest text-[10px] sm:text-xs mb-2">Checkout Request</p>
+              <p className={`font-black uppercase tracking-widest text-[10px] sm:text-xs mb-2 transition-colors ${isViewOnly ? 'text-slate-500' : 'text-[#3852A4]'}`}>
+                {isViewOnly ? 'Receipt / Record' : 'Checkout Request'}
+              </p>
               <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-2 break-words">{equipment.name}</h1>
               <p className={`font-medium tracking-widest uppercase text-xs sm:text-sm ${labelText}`}>Asset Tag: {equipment.assetTag}</p>
             </div>
 
-            <form onSubmit={handleSubmit} className="flex flex-col gap-5 sm:gap-6">
+            <form onSubmit={handleSubmit} className={`flex flex-col gap-5 sm:gap-6 transition-all duration-500 ${isViewOnly ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
 
               <div className="flex flex-col">
                 <label className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.3em] ml-4 sm:ml-6 mb-2 ${labelText}`}>Full Name</label>
                 <input
                   required type="text" placeholder="e.g. Maria Santos"
                   className={`p-4 sm:p-6 rounded-2xl sm:rounded-3xl border outline-none focus:border-[#3852A4] transition-all text-base sm:text-lg ${inputBg}`}
+                  value={formData.fullName}
                   onChange={(e) => setFormData({...formData, fullName: e.target.value})}
                 />
               </div>
@@ -242,6 +253,7 @@ export default function BorrowFormPage() {
                   <input
                     required type="text" placeholder="e.g. 202613213"
                     className={`p-4 sm:p-6 rounded-2xl sm:rounded-3xl border outline-none focus:border-[#3852A4] transition-all text-base sm:text-lg ${inputBg}`}
+                    value={formData.idNumber}
                     onChange={(e) => setFormData({...formData, idNumber: e.target.value})}
                   />
                 </div>
@@ -253,6 +265,7 @@ export default function BorrowFormPage() {
                   <input
                     required type="text" placeholder="e.g. Guest Researcher"
                     className={`p-4 sm:p-6 rounded-2xl sm:rounded-3xl border outline-none focus:border-[#3852A4] transition-all text-base sm:text-lg ${inputBg}`}
+                    value={formData.otherRole}
                     onChange={(e) => setFormData({...formData, otherRole: e.target.value})}
                   />
                 </div>
@@ -295,7 +308,6 @@ export default function BorrowFormPage() {
                   placeholderText="Select return date"
                   wrapperClassName="w-full"
                   dateFormat="MMMM d, yyyy"
-                  // FIXED: Removed readOnly to ensure the calendar opens on click[cite: 15]
                   className={`w-full p-4 sm:p-6 rounded-2xl sm:rounded-3xl border outline-none transition-all text-base sm:text-lg cursor-pointer
                     ${formData.returnDate
                       ? `border-[#3852A4] font-bold shadow-[0_0_15px_rgba(56,82,164,0.15)] pr-12 sm:pr-14 ${isDarkMode ? 'bg-[#3852A4]/10 text-blue-100' : 'bg-blue-50/50 text-[#3852A4]'}`
@@ -319,7 +331,16 @@ export default function BorrowFormPage() {
                 </div>
               </div>
 
-              {equipment.status !== 'available' ? (
+              {/* Conditional Submit Button styling */}
+              {isViewOnly ? (
+                 <div className={`mt-2 sm:mt-4 p-4 sm:py-6 rounded-2xl sm:rounded-3xl border text-center font-bold uppercase tracking-widest text-xs sm:text-sm ${isDarkMode ? 'bg-white/5 border-white/10 text-white/50' : 'bg-slate-100 border-slate-200 text-slate-500'}`}>
+                   Transaction Completed
+                 </div>
+              ) : equipment.status === 'maintenance' ? (
+                <div className={`mt-2 sm:mt-4 p-4 sm:py-6 rounded-2xl sm:rounded-3xl border text-center font-bold uppercase tracking-widest text-xs sm:text-sm ${isDarkMode ? 'bg-white/5 border-white/10 text-white/50' : 'bg-slate-100 border-slate-200 text-slate-500'}`}>
+                  Item is under maintenance
+                </div>
+              ) : equipment.status !== 'available' ? (
                 <div className="mt-2 sm:mt-4 p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-red-500/10 border border-red-500/20 text-red-500 text-center font-bold uppercase tracking-widest text-xs sm:text-sm">
                   Item is currently out of stock
                 </div>

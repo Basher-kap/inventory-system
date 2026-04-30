@@ -18,25 +18,24 @@ export default function AddEquipmentPage() {
   const [expandedGroups, setExpandedGroups] = useState({});
 
   const [editingId, setEditingId] = useState(null);
-  const [editName, setEditName] = useState('');
-  const [toast, setToast] = useState({ show: false, message: '' });
+  const [editForm, setEditForm] = useState({ name: '', totalQuantity: 1 });
+
+  const [toast, setToast] = useState({ show: false, message: '', type: 'default' });
   const [deleteModal, setDeleteModal] = useState({ show: false, itemId: null });
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   const dropdownRef = useRef(null);
   const categories = ["Electronics", "Glassware", "Hardware", "Peripherals"];
 
-  const showToast = (message) => {
-    setToast({ show: true, message });
-    setTimeout(() => setToast({ show: false, message: '' }), 3000);
+  const showToast = (message, type = 'default') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast({ show: false, message: '', type: 'default' }), 3000);
   };
 
-  // FIXED: Robust High-Resolution Download Function[cite: 13, 14]
   const downloadQRCode = (id, fileName) => {
     const svg = document.getElementById(id);
     if (!svg) return;
 
-    // 1. Clone the SVG and ensure the XML Namespace is present[cite: 13]
     const svgClone = svg.cloneNode(true);
     svgClone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
     const svgData = new XMLSerializer().serializeToString(svgClone);
@@ -45,24 +44,16 @@ export default function AddEquipmentPage() {
     const ctx = canvas.getContext("2d");
     const img = new Image();
 
-    // 2. Set HD resolution (2048px) for high-quality printing[cite: 13, 14]
     const size = 2048;
 
     img.onload = () => {
       canvas.width = size;
       canvas.height = size;
-
-      // 3. Keep QR edges crisp (Disable smoothing)[cite: 13]
       ctx.imageSmoothingEnabled = false;
-
-      // 4. Fill background with white (Required for physical scanners)[cite: 13]
       ctx.fillStyle = "white";
       ctx.fillRect(0, 0, size, size);
-
-      // 5. Draw the SVG image onto the canvas[cite: 13]
       ctx.drawImage(img, 0, 0, size, size);
 
-      // 6. Secure Blob-based download[cite: 13]
       canvas.toBlob((blob) => {
         const url = URL.createObjectURL(blob);
         const downloadLink = document.createElement("a");
@@ -75,7 +66,6 @@ export default function AddEquipmentPage() {
       }, "image/png", 1.0);
     };
 
-    // Correctly handle Blob encoding[cite: 13]
     const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
     img.src = URL.createObjectURL(svgBlob);
   };
@@ -122,7 +112,7 @@ export default function AddEquipmentPage() {
       setName(''); setQuantity(1);
     } catch (error) {
       console.error(error);
-      showToast("Error adding equipment.");
+      showToast("Error adding equipment.", 'delete');
     } finally { setIsLoading(false); }
   };
 
@@ -130,18 +120,48 @@ export default function AddEquipmentPage() {
     if (deleteModal.itemId) {
       try {
         await deleteDoc(doc(db, 'equipment', deleteModal.itemId));
-        showToast("Asset removed.");
-      } catch (error) { showToast("Error deleting."); }
+        showToast("Asset permanently removed.", 'delete');
+      } catch (error) {
+        showToast("Error deleting asset.", 'delete');
+      }
       finally { setDeleteModal({ show: false, itemId: null }); }
     }
   };
 
-  const handleUpdate = async (id) => {
+  const handleUpdate = async (item) => {
     try {
-      await updateDoc(doc(db, 'equipment', id), { name: editName });
-      showToast("Updated.");
+      const updateData = { name: editForm.name };
+
+      if (item.trackingType === 'bulk') {
+        const newTotal = parseInt(editForm.totalQuantity) || 1;
+        const borrowedAmount = item.totalQuantity - item.availableQuantity;
+        const newAvailable = Math.max(0, newTotal - borrowedAmount);
+
+        updateData.totalQuantity = newTotal;
+        updateData.availableQuantity = newAvailable;
+        if (item.status !== 'maintenance') {
+            updateData.status = newAvailable === 0 ? 'borrowed' : 'available';
+        }
+      }
+
+      await updateDoc(doc(db, 'equipment', item.id), updateData);
+      showToast("Asset updated.");
       setEditingId(null);
-    } catch (error) { showToast("Update failed."); }
+    } catch (error) {
+      console.error("Update failed:", error);
+      showToast("Update failed.", 'delete');
+    }
+  };
+
+  const toggleMaintenance = async (item) => {
+    try {
+      const newStatus = item.status === 'maintenance' ? 'available' : 'maintenance';
+      await updateDoc(doc(db, 'equipment', item.id), { status: newStatus });
+      showToast(`Item marked as ${newStatus}.`);
+    } catch (error) {
+      console.error("Maintenance update failed:", error);
+      showToast("Status update failed.", 'delete');
+    }
   };
 
   const toggleGroup = (groupKey) => {
@@ -174,16 +194,33 @@ export default function AddEquipmentPage() {
   const dropItem = isDarkMode ? 'text-white/60 hover:bg-white/10' : 'text-slate-600 hover:bg-slate-100';
   const dropActive = isDarkMode ? 'text-[#3B82F6] bg-[#3B82F6]/5' : 'text-[#3852A4] bg-[#3852A4]/5';
   const addBtn = isDarkMode ? 'bg-white/10 hover:bg-white/20 border-white/20 text-white' : 'bg-slate-900 text-white border-slate-900 hover:bg-slate-800';
-  const editInput = isDarkMode ? 'bg-white/10 text-white' : 'bg-slate-100 text-slate-900';
+  const editInput = isDarkMode ? 'bg-white/10 text-white border-white/20 focus:border-[#3852A4]' : 'bg-slate-100 text-slate-900 border-slate-300 focus:border-[#3852A4]';
   const badgeAvailable = isDarkMode ? 'bg-[#3852A4]/20 text-blue-400' : 'bg-[#3852A4]/10 text-[#3852A4]';
   const badgeUnavailable = isDarkMode ? 'bg-white/5 text-white/40' : 'bg-slate-100 text-slate-500';
+
+  // Harmonized Badge Styling
+  const getBadgeStyle = (status) => {
+    if (status === 'available') return badgeAvailable;
+    if (status === 'maintenance') return isDarkMode ? 'bg-white/10 text-white/60' : 'bg-slate-200 text-slate-600';
+    return badgeUnavailable;
+  };
+
+  const getToastStyle = () => {
+    if (toast.type === 'delete') {
+      return isDarkMode ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-red-50 border-red-200 text-red-600';
+    }
+    return isDarkMode ? 'bg-white/10 border-white/10 text-white' : 'bg-slate-900 border-slate-800 text-white';
+  };
 
   return (
     <div className={`min-h-screen w-full p-4 sm:p-6 md:p-12 lg:p-16 flex flex-col items-center overflow-y-auto relative transition-colors duration-500 ${pageBg}`} style={{ fontFamily: "ui-monospace, monospace" }}>
 
       <div className={`fixed bottom-4 sm:bottom-10 right-4 sm:right-10 z-[60] transition-all duration-500 transform ${toast.show ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0 pointer-events-none'}`}>
-        <div className={`px-6 sm:px-8 py-3 sm:py-4 rounded-xl sm:rounded-2xl backdrop-blur-2xl border shadow-2xl ${isDarkMode ? 'bg-white/10 border-white/10 text-white' : 'bg-slate-900 border-slate-800 text-white'}`}>
-          <span className="text-[10px] sm:text-xs font-black tracking-[0.3em] uppercase opacity-80">{toast.message}</span>
+        <div className={`px-6 sm:px-8 py-3 sm:py-4 rounded-xl sm:rounded-2xl backdrop-blur-2xl border shadow-2xl transition-colors duration-300 flex items-center gap-3 ${getToastStyle()}`}>
+          {toast.type === 'delete' && (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+          )}
+          <span className="text-[10px] sm:text-xs font-black tracking-[0.3em] uppercase opacity-90">{toast.message}</span>
         </div>
       </div>
 
@@ -265,7 +302,7 @@ export default function AddEquipmentPage() {
             <thead>
               <tr className={`text-[10px] sm:text-xs font-bold uppercase tracking-[0.2em] ${tableHead}`}>
                 <th className="px-6 sm:px-10 py-6 sm:py-8 whitespace-nowrap">Asset Tag</th>
-                <th className="px-6 sm:px-10 py-6 sm:py-8 whitespace-nowrap">Equipment Name</th>
+                <th className="px-6 sm:px-10 py-6 sm:py-8 whitespace-nowrap min-w-[250px]">Equipment Name & Details</th>
                 <th className="px-6 sm:px-10 py-6 sm:py-8 text-center whitespace-nowrap">Status</th>
                 <th className="px-6 sm:px-10 py-6 sm:py-8 text-center whitespace-nowrap">Checkout Tag</th>
                 <th className="px-6 sm:px-10 py-6 sm:py-8 text-right whitespace-nowrap">Management</th>
@@ -280,30 +317,77 @@ export default function AddEquipmentPage() {
                   return (
                     <tr key={item.id} className={`transition-all ${isDarkMode ? 'hover:bg-white/[0.02]' : 'hover:bg-slate-50'}`}>
                       <td className={`px-6 sm:px-10 py-6 sm:py-8 font-medium tracking-wider text-sm sm:text-base ${assetText}`}>{item.assetTag}</td>
-                      <td className="px-6 sm:px-10 py-6 sm:py-8 text-lg sm:text-xl font-bold whitespace-nowrap">
-                        {editingId === item.id ? <input autoFocus value={editName} onChange={(e) => setEditName(e.target.value)} onBlur={() => handleUpdate(item.id)} className={`border border-[#3852A4] outline-none px-3 sm:px-4 py-1 sm:py-2 rounded-lg sm:rounded-xl w-full ${editInput}`} /> : item.name}
+
+                      <td className="px-6 sm:px-10 py-6 sm:py-8 text-lg sm:text-xl font-bold">
+                        {editingId === item.id ? (
+                          <div className="flex flex-col gap-3">
+                            <input
+                              autoFocus
+                              value={editForm.name}
+                              onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                              placeholder="Equipment Name"
+                              className={`border outline-none px-3 sm:px-4 py-2 sm:py-2 rounded-lg sm:rounded-xl w-full text-base ${editInput}`}
+                            />
+                            {isBulk && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] uppercase tracking-widest opacity-50">Total Qty:</span>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={editForm.totalQuantity}
+                                  onChange={(e) => setEditForm({...editForm, totalQuantity: e.target.value})}
+                                  className={`border outline-none px-3 py-1 rounded-lg w-24 text-sm ${editInput}`}
+                                />
+                              </div>
+                            )}
+                            <div className="flex gap-2 mt-2">
+                              <button onClick={() => handleUpdate(item)} className={`text-[10px] font-bold uppercase tracking-widest px-4 py-1.5 rounded-full transition-all ${isDarkMode ? 'bg-[#3852A4]/20 text-blue-400 hover:bg-[#3852A4]/30' : 'bg-[#3852A4]/10 text-[#3852A4] hover:bg-[#3852A4]/20'}`}>Save</button>
+                              <button onClick={() => setEditingId(null)} className="text-[10px] font-bold text-slate-500 uppercase tracking-widest bg-slate-500/10 px-4 py-1.5 rounded-full hover:bg-slate-500/20 transition-all">Cancel</button>
+                            </div>
+                          </div>
+                        ) : (
+                          item.name
+                        )}
                       </td>
+
                       <td className="px-6 sm:px-10 py-6 sm:py-8 text-center whitespace-nowrap">
-                        <span className={`px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase tracking-widest ${item.status === 'available' ? badgeAvailable : badgeUnavailable}`}>
-                          {isBulk ? `${item.availableQuantity} / ${item.totalQuantity} Available` : item.status}
+                        <span className={`px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase tracking-widest ${getBadgeStyle(item.status)}`}>
+                          {isBulk && item.status !== 'maintenance' ? `${item.availableQuantity} / ${item.totalQuantity} Available` : item.status}
                         </span>
                       </td>
+
                       <td className="px-6 sm:px-10 py-6 sm:py-8 text-center">
                         <div className="bg-white p-2 rounded-lg sm:rounded-xl inline-block shadow-sm relative">
-                          <QRCodeSVG id={`qr-${item.id}`} value={`${import.meta.env.VITE_APP_URL}/borrow/${item.id}`} size={64} level={"H"} includeMargin={false} />
+                          <QRCodeSVG id={`qr-${item.id}`} value={`${import.meta.env.VITE_APP_URL || window.location.origin}/borrow/${item.id}`} size={64} level={"H"} includeMargin={false} />
                           <div style={{position:'absolute',left:'-9999px',top:'-9999px'}}>
-                            <QRCodeSVG id={`qr-dl-${item.id}`} value={`${import.meta.env.VITE_APP_URL}/borrow/${item.id}`} size={512} level={"H"} includeMargin={true} />
+                            <QRCodeSVG id={`qr-dl-${item.id}`} value={`${import.meta.env.VITE_APP_URL || window.location.origin}/borrow/${item.id}`} size={512} level={"H"} includeMargin={true} />
                           </div>
                           {isBulk && <div className="absolute -top-2 -right-2 bg-[#3852A4] text-white text-[6px] sm:text-[8px] font-bold px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full shadow-lg">BULK</div>}
                         </div>
                         <div className="mt-2 flex flex-col items-center gap-1">
-                          {/* TEST LINK COMMENTED OUT FOR REDEPLOYMENT[cite: 14] */}
-                          {/* <a href={`/borrow/${item.id}`} target="_blank" rel="noreferrer" className="text-[8px] sm:text-[10px] font-bold text-blue-400 hover:underline uppercase tracking-widest cursor-pointer whitespace-nowrap">Test Link</a> */}
+                           {/* TEST LINK COMMENTED OUT FOR REDEPLOYMENT[cite: 14] */}
+                          {/*<a href={`/borrow/${item.id}`} target="_blank" rel="noreferrer" className="text-[8px] sm:text-[10px] font-bold text-blue-400 hover:underline uppercase tracking-widest cursor-pointer whitespace-nowrap">Test Link</a>*/}
                           <button onClick={() => downloadQRCode(`qr-dl-${item.id}`, `QR_${item.assetTag}`)} className="text-[8px] sm:text-[10px] font-bold text-[#3852A4] hover:underline uppercase tracking-widest cursor-pointer whitespace-nowrap">Download PNG</button>
                         </div>
                       </td>
-                      <td className="px-6 sm:px-10 py-6 sm:py-8 text-right space-x-3 sm:space-x-6 whitespace-nowrap">
-                        <button onClick={() => { setEditingId(item.id); setEditName(item.name); }} className="text-blue-400 hover:text-blue-300 font-bold text-xs sm:text-sm uppercase tracking-widest transition-all cursor-pointer">Edit</button>
+
+                      <td className="px-6 sm:px-10 py-6 sm:py-8 text-right space-x-4 sm:space-x-6 whitespace-nowrap">
+                        <button onClick={() => { setEditingId(item.id); setEditForm({ name: item.name, totalQuantity: item.totalQuantity || 1 }); }} className="text-blue-400 hover:text-blue-300 font-bold text-xs sm:text-sm uppercase tracking-widest transition-all cursor-pointer">Edit</button>
+
+                        {/* HARMONIZED MAINTENANCE BUTTON */}
+                        {item.status !== 'borrowed' && (
+                          <button
+                            onClick={() => toggleMaintenance(item)}
+                            className={`font-bold text-xs sm:text-sm uppercase tracking-widest transition-all cursor-pointer ${
+                              item.status === 'maintenance'
+                                ? 'text-[#3852A4] hover:text-blue-500'
+                                : (isDarkMode ? 'text-white/30 hover:text-white/70' : 'text-slate-400 hover:text-slate-700')
+                            }`}
+                          >
+                            {item.status === 'maintenance' ? 'Resolve' : 'Maintain'}
+                          </button>
+                        )}
+
                         <button onClick={() => setDeleteModal({ show: true, itemId: item.id })} className="text-red-500/60 hover:text-red-400 font-bold text-xs sm:text-sm uppercase tracking-widest transition-all cursor-pointer">Delete</button>
                       </td>
                     </tr>
@@ -326,23 +410,61 @@ export default function AddEquipmentPage() {
                     {expandedGroups[group.key] && group.items.map((item) => (
                       <tr key={item.id} className={`transition-all border-l-2 sm:border-l-4 border-l-[#3852A4] ${isDarkMode ? 'bg-black/30 hover:bg-black/50' : 'bg-slate-50/50 hover:bg-slate-50'}`}>
                         <td className={`px-6 sm:px-10 py-6 sm:py-8 font-medium tracking-wider pl-8 sm:pl-14 text-sm sm:text-base ${assetText} whitespace-nowrap`}><span className="opacity-30 mr-1 sm:mr-2">└─</span> {item.assetTag}</td>
-                        <td className="px-6 sm:px-10 py-6 sm:py-8 text-base sm:text-lg font-medium opacity-80 whitespace-nowrap">{editingId === item.id ? <input autoFocus value={editName} onChange={(e) => setEditName(e.target.value)} onBlur={() => handleUpdate(item.id)} className={`border border-[#3852A4] outline-none px-3 sm:px-4 py-1 sm:py-2 rounded-lg sm:rounded-xl w-full ${editInput}`} /> : item.name}</td>
-                        <td className="px-6 sm:px-10 py-6 sm:py-8 text-center whitespace-nowrap"><span className={`px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase tracking-widest ${item.status === 'available' ? badgeAvailable : badgeUnavailable}`}>{item.status}</span></td>
+
+                        <td className="px-6 sm:px-10 py-6 sm:py-8 text-base sm:text-lg font-medium opacity-80">
+                          {editingId === item.id ? (
+                            <div className="flex flex-col gap-3">
+                              <input
+                                autoFocus
+                                value={editForm.name}
+                                onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                                className={`border outline-none px-3 sm:px-4 py-1 sm:py-2 rounded-lg sm:rounded-xl w-full text-base ${editInput}`}
+                              />
+                              <div className="flex gap-2 mt-2">
+                                <button onClick={() => handleUpdate(item)} className={`text-[10px] font-bold uppercase tracking-widest px-4 py-1.5 rounded-full transition-all ${isDarkMode ? 'bg-[#3852A4]/20 text-blue-400 hover:bg-[#3852A4]/30' : 'bg-[#3852A4]/10 text-[#3852A4] hover:bg-[#3852A4]/20'}`}>Save</button>
+                                <button onClick={() => setEditingId(null)} className="text-[10px] font-bold text-slate-500 uppercase tracking-widest bg-slate-500/10 px-4 py-1.5 rounded-full hover:bg-slate-500/20 transition-all">Cancel</button>
+                              </div>
+                            </div>
+                          ) : (
+                            item.name
+                          )}
+                        </td>
+
+                        <td className="px-6 sm:px-10 py-6 sm:py-8 text-center whitespace-nowrap">
+                          <span className={`px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase tracking-widest ${getBadgeStyle(item.status)}`}>
+                            {item.status}
+                          </span>
+                        </td>
+
                         <td className="px-6 sm:px-10 py-6 sm:py-8 text-center">
                           <div className="bg-white p-2 rounded-lg sm:rounded-xl inline-block shadow-sm relative">
-                            <QRCodeSVG id={`qr-${item.id}`} value={`${import.meta.env.VITE_APP_URL}/borrow/${item.id}`} size={64} level={"H"} includeMargin={false} />
-                          <div style={{position:'absolute',left:'-9999px',top:'-9999px'}}>
-                            <QRCodeSVG id={`qr-dl-${item.id}`} value={`${import.meta.env.VITE_APP_URL}/borrow/${item.id}`} size={512} level={"H"} includeMargin={true} />
-                          </div>
+                            <QRCodeSVG id={`qr-${item.id}`} value={`${import.meta.env.VITE_APP_URL || window.location.origin}/borrow/${item.id}`} size={48} sm:size={64} level={"H"} includeMargin={false} />
+                            <div style={{position:'absolute',left:'-9999px',top:'-9999px'}}>
+                              <QRCodeSVG id={`qr-dl-${item.id}`} value={`${import.meta.env.VITE_APP_URL || window.location.origin}/borrow/${item.id}`} size={512} level={"H"} includeMargin={true} />
+                            </div>
                           </div>
                           <div className="mt-2 flex flex-col items-center gap-1">
-                            {/* TEST LINK COMMENTED OUT FOR REDEPLOYMENT[cite: 14] */}
-                            {/* <a href={`/borrow/${item.id}`} target="_blank" rel="noreferrer" className="text-[8px] sm:text-[10px] font-bold text-blue-400 hover:underline uppercase tracking-widest cursor-pointer whitespace-nowrap">Test Link</a> */}
                             <button onClick={() => downloadQRCode(`qr-dl-${item.id}`, `QR_${item.assetTag}`)} className="text-[8px] sm:text-[10px] font-bold text-[#3852A4] hover:underline uppercase tracking-widest cursor-pointer whitespace-nowrap">Download PNG</button>
                           </div>
                         </td>
-                        <td className="px-6 sm:px-10 py-6 sm:py-8 text-right space-x-3 sm:space-x-6 whitespace-nowrap">
-                          <button onClick={() => { setEditingId(item.id); setEditName(item.name); }} className="text-blue-400 hover:text-blue-300 font-bold text-xs sm:text-sm uppercase tracking-widest transition-all cursor-pointer">Edit</button>
+
+                        <td className="px-6 sm:px-10 py-6 sm:py-8 text-right space-x-4 sm:space-x-6 whitespace-nowrap">
+                          <button onClick={() => { setEditingId(item.id); setEditForm({ name: item.name, totalQuantity: item.totalQuantity || 1 }); }} className="text-blue-400 hover:text-blue-300 font-bold text-xs sm:text-sm uppercase tracking-widest transition-all cursor-pointer">Edit</button>
+
+                          {/* HARMONIZED MAINTENANCE BUTTON */}
+                          {item.status !== 'borrowed' && (
+                            <button
+                              onClick={() => toggleMaintenance(item)}
+                              className={`font-bold text-xs sm:text-sm uppercase tracking-widest transition-all cursor-pointer ${
+                                item.status === 'maintenance'
+                                  ? 'text-[#3852A4] hover:text-blue-500'
+                                  : (isDarkMode ? 'text-white/30 hover:text-white/70' : 'text-slate-400 hover:text-slate-700')
+                              }`}
+                            >
+                              {item.status === 'maintenance' ? 'Resolve' : 'Maintain'}
+                            </button>
+                          )}
+
                           <button onClick={() => setDeleteModal({ show: true, itemId: item.id })} className="text-red-500/60 hover:text-red-400 font-bold text-xs sm:text-sm uppercase tracking-widest transition-all cursor-pointer">Delete</button>
                         </td>
                       </tr>
