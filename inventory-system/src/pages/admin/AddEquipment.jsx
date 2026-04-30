@@ -2,9 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, addDoc, onSnapshot, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase/firebase.config';
+import { useTheme } from '../../context/ThemeContext';
 
 export default function AddEquipmentPage() {
   const navigate = useNavigate();
+  const { isDarkMode } = useTheme();
+
   const [name, setName] = useState('');
   const [category, setCategory] = useState('Electronics');
   const [quantity, setQuantity] = useState(1);
@@ -12,8 +15,6 @@ export default function AddEquipmentPage() {
   const [equipmentList, setEquipmentList] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState('');
-
-  // UI States: Toast, Modal, and the Custom Dropdown[cite: 22, 26]
   const [toast, setToast] = useState({ show: false, message: '' });
   const [deleteModal, setDeleteModal] = useState({ show: false, itemId: null });
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -26,7 +27,6 @@ export default function AddEquipmentPage() {
     setTimeout(() => setToast({ show: false, message: '' }), 3000);
   };
 
-  // Close dropdown when clicking outside[cite: 22]
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -79,70 +79,91 @@ export default function AddEquipmentPage() {
     } catch (error) { showToast("Update failed."); }
   };
 
-  return (
-    <div className="min-h-screen w-full bg-[#050B14] text-white p-6 md:p-12 lg:p-16 flex flex-col items-center overflow-y-auto relative" style={{ fontFamily: "ui-monospace, monospace" }}>
+  const pageBg     = isDarkMode ? 'bg-[#050B14] text-white'         : 'bg-slate-50 text-slate-900';
+  const cardBg     = isDarkMode ? 'bg-white/[0.03] border-white/10' : 'bg-white border-slate-200 shadow-xl shadow-slate-200/40';
+  const inputBg    = isDarkMode ? 'bg-black/40 border-white/10 placeholder:text-white/10'
+                                : 'bg-white border-slate-300 placeholder:text-slate-400 text-slate-900';
+  const labelText  = isDarkMode ? 'text-white/30'                   : 'text-slate-400';
+  const subText    = isDarkMode ? 'text-blue-100/40'                : 'text-slate-400';
+  const backBtn    = isDarkMode ? 'text-white/40 hover:text-white'  : 'text-slate-400 hover:text-slate-900';
+  const tableHead  = isDarkMode ? 'bg-white/5 text-white/20'        : 'bg-slate-50 text-slate-400';
+  const assetText  = isDarkMode ? 'text-white/40'                   : 'text-slate-400';
+  const countText  = isDarkMode ? 'text-white/30'                   : 'text-slate-400';
+  const dropdownBg = isDarkMode ? 'bg-black/80 border-white/10'     : 'bg-white border-slate-200 shadow-xl';
+  const dropItem   = isDarkMode ? 'text-white/60 hover:bg-white/10' : 'text-slate-600 hover:bg-slate-100';
+  const dropActive = isDarkMode ? 'text-[#3B82F6] bg-[#3B82F6]/5'  : 'text-[#3852A4] bg-[#3852A4]/5';
+  const modalBg    = isDarkMode ? 'bg-gradient-to-br from-white/10 to-[#050B14] border-white/10'
+                                : 'bg-white border-slate-200';
+  const modalSub   = isDarkMode ? 'text-white/50'                   : 'text-slate-500';
+  const cancelBtn  = isDarkMode ? 'border-white/10 hover:bg-white/5 text-white'
+                                : 'border-slate-200 hover:bg-slate-100 text-slate-700';
+  const addBtn     = isDarkMode ? 'bg-white/10 hover:bg-white/20 border-white/20 text-white'
+                                : 'bg-slate-900 text-white border-slate-900 hover:bg-slate-800';
+  const editInput  = isDarkMode ? 'bg-white/10 text-white'          : 'bg-slate-100 text-slate-900';
+  const chevron    = isDarkMode ? 'text-white/40'                   : 'text-slate-400';
 
-      {/* --- MINIMAL TOAST[cite: 22, 26] --- */}
+  return (
+    <div
+      className={`min-h-screen w-full p-6 md:p-12 lg:p-16 flex flex-col items-center overflow-y-auto relative transition-colors duration-500 ${pageBg}`}
+      style={{ fontFamily: "ui-monospace, monospace" }}
+    >
+      {/* Toast */}
       <div className={`fixed bottom-10 right-10 z-[60] transition-all duration-500 transform ${toast.show ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0 pointer-events-none'}`}>
         <div className="px-8 py-4 rounded-2xl bg-white/10 backdrop-blur-2xl border border-white/10 shadow-2xl">
           <span className="text-xs font-black tracking-[0.3em] uppercase text-white/80">{toast.message}</span>
         </div>
       </div>
 
-      {/* --- SUBTLE DELETE MODAL[cite: 22, 26] --- */}
+      {/* Delete Modal */}
       {deleteModal.show && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-6">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setDeleteModal({ show: false, itemId: null })}></div>
-          <div className="relative w-full max-w-md p-10 bg-gradient-to-br from-white/10 to-[#050B14] backdrop-blur-3xl border border-white/10 rounded-[2.5rem] shadow-2xl text-center">
+          <div className={`relative w-full max-w-md p-10 backdrop-blur-3xl border rounded-[2.5rem] shadow-2xl text-center ${modalBg}`}>
             <h3 className="text-2xl font-bold mb-4">Confirm Deletion</h3>
-            <p className="text-white/50 mb-8 leading-relaxed">This action is permanent. Are you sure you want to remove this asset tag from the inventory?</p>
+            <p className={`mb-8 leading-relaxed ${modalSub}`}>This action is permanent. Are you sure you want to remove this asset tag from the inventory?</p>
             <div className="flex gap-4">
-              <button onClick={() => setDeleteModal({ show: false, itemId: null })} className="flex-1 py-4 rounded-2xl border border-white/10 hover:bg-white/5 transition-all font-bold">Cancel</button>
+              <button onClick={() => setDeleteModal({ show: false, itemId: null })} className={`flex-1 py-4 rounded-2xl border transition-all font-bold ${cancelBtn}`}>Cancel</button>
               <button onClick={confirmDelete} className="flex-1 py-4 rounded-2xl bg-red-500/20 border border-red-500/30 text-red-400 hover:bg-red-500/30 transition-all font-bold">Delete</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Back Navigation */}
-      <button onClick={() => navigate('/dashboard')} className="self-start text-lg text-white/40 hover:text-white transition-all mb-12 flex items-center gap-2">
+      {/* Back */}
+      <button onClick={() => navigate('/dashboard')} className={`self-start text-lg transition-all mb-12 flex items-center gap-2 ${backBtn}`}>
         <span className="text-2xl">←</span> Back to Dashboard
       </button>
 
-      {/* Add Form Card[cite: 21, 22, 26] */}
-      <div className="w-full max-w-6xl p-12 bg-white/[0.03] backdrop-blur-3xl border border-white/10 rounded-[3rem] mb-16 shadow-2xl">
+      {/* Form Card */}
+      <div className={`w-full max-w-6xl p-12 backdrop-blur-3xl border rounded-[3rem] mb-16 shadow-2xl ${cardBg}`}>
         <h1 className="text-5xl font-bold tracking-tight mb-4">Add Equipment</h1>
-        <p className="text-xl text-blue-100/40 mb-12">Register and track new lab assets.</p>
+        <p className={`text-xl mb-12 ${subText}`}>Register and track new lab assets.</p>
 
         <form onSubmit={handleAddEquipment} className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-end">
           <div className="lg:col-span-5">
-            <label className="text-xs font-bold text-white/30 uppercase tracking-[0.3em] mb-4 block">Equipment Name</label>
-            <input type="text" required value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-3xl px-8 py-6 text-xl focus:border-[#3852A4] transition-all outline-none placeholder:text-white/10" placeholder="e.g. Epson Projector X1" />
+            <label className={`text-xs font-bold uppercase tracking-[0.3em] mb-4 block ${labelText}`}>Equipment Name</label>
+            <input type="text" required value={name} onChange={(e) => setName(e.target.value)}
+              className={`w-full border rounded-3xl px-8 py-6 text-xl focus:border-[#3852A4] transition-all outline-none ${inputBg}`}
+              placeholder="e.g. Epson Projector X1" />
           </div>
 
-          {/* --- CUSTOM DESIGNED DROPDOWN --- */}
           <div className="lg:col-span-3 relative" ref={dropdownRef}>
-            <label className="text-xs font-bold text-white/30 uppercase tracking-[0.3em] mb-4 block">Category</label>
+            <label className={`text-xs font-bold uppercase tracking-[0.3em] mb-4 block ${labelText}`}>Category</label>
             <div
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className={`w-full bg-black/40 border rounded-3xl px-8 py-6 text-xl cursor-pointer transition-all flex justify-between items-center ${isDropdownOpen ? 'border-[#3852A4] ring-1 ring-[#3852A4]/50' : 'border-white/10'}`}
+              className={`w-full border rounded-3xl px-8 py-6 text-xl cursor-pointer transition-all flex justify-between items-center ${inputBg} ${isDropdownOpen ? 'border-[#3852A4] ring-1 ring-[#3852A4]/50' : ''}`}
             >
-              <span className={category ? 'text-white' : 'text-white/10'}>{category}</span>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform duration-300 ${isDropdownOpen ? 'rotate-180 text-[#3852A4]' : 'text-white/40'}`}><path d="M6 9l6 6 6-6"/></svg>
+              <span>{category}</span>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                className={`transition-transform duration-300 ${isDropdownOpen ? 'rotate-180 text-[#3852A4]' : chevron}`}>
+                <path d="M6 9l6 6 6-6"/>
+              </svg>
             </div>
-
-            {/* Custom Options Menu (The design improvement)[cite: 26] */}
             {isDropdownOpen && (
-              <div className="absolute top-[calc(100%+10px)] left-0 w-full bg-black/80 backdrop-blur-2xl border border-white/10 rounded-3xl overflow-hidden z-[80] shadow-2xl animate-in fade-in slide-in-from-top-2">
+              <div className={`absolute top-[calc(100%+10px)] left-0 w-full backdrop-blur-2xl border rounded-3xl overflow-hidden z-[80] shadow-2xl ${dropdownBg}`}>
                 {categories.map((cat) => (
-                  <div
-                    key={cat}
-                    onClick={() => {
-                      setCategory(cat);
-                      setIsDropdownOpen(false);
-                    }}
-                    className={`px-8 py-4 text-lg cursor-pointer transition-all hover:bg-white/10 ${category === cat ? 'text-[#3B82F6] bg-[#3B82F6]/5 font-bold' : 'text-white/60'}`}
-                  >
+                  <div key={cat} onClick={() => { setCategory(cat); setIsDropdownOpen(false); }}
+                    className={`px-8 py-4 text-lg cursor-pointer transition-all ${category === cat ? `font-bold ${dropActive}` : dropItem}`}>
                     {cat}
                   </div>
                 ))}
@@ -151,41 +172,44 @@ export default function AddEquipmentPage() {
           </div>
 
           <div className="lg:col-span-2">
-            <label className="text-xs font-bold text-white/30 uppercase tracking-[0.3em] mb-4 block">Quantity</label>
-            <input type="number" min="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-3xl py-6 text-xl text-center outline-none focus:border-[#3852A4] transition-all" />
+            <label className={`text-xs font-bold uppercase tracking-[0.3em] mb-4 block ${labelText}`}>Quantity</label>
+            <input type="number" min="1" value={quantity} onChange={(e) => setQuantity(e.target.value)}
+              className={`w-full border rounded-3xl py-6 text-xl text-center outline-none focus:border-[#3852A4] transition-all ${inputBg}`} />
           </div>
 
           <div className="lg:col-span-2">
-            <button type="submit" disabled={isLoading} className="w-full bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white py-6 rounded-3xl font-bold text-xl transition-all shadow-lg active:scale-95 disabled:opacity-50 cursor-pointer">
+            <button type="submit" disabled={isLoading}
+              className={`w-full backdrop-blur-md border py-6 rounded-3xl font-bold text-xl transition-all shadow-lg active:scale-95 disabled:opacity-50 cursor-pointer ${addBtn}`}>
               {isLoading ? "..." : "Add"}
             </button>
           </div>
         </form>
       </div>
 
-      {/* Inventory List Table[cite: 21, 22, 26] */}
-      <div className="w-full max-w-6xl bg-white/[0.02] border border-white/10 rounded-[3rem] overflow-hidden shadow-xl">
-        <div className="p-10 border-b border-white/10 bg-white/5 flex justify-between items-center">
+      {/* Inventory Table */}
+      <div className={`w-full max-w-6xl border rounded-[3rem] overflow-hidden shadow-xl ${isDarkMode ? 'bg-white/[0.02] border-white/10' : 'bg-white border-slate-200'}`}>
+        <div className={`p-10 border-b flex justify-between items-center ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
           <h2 className="text-2xl font-bold tracking-tight">Active Inventory</h2>
-          <span className="text-sm font-bold text-white/30 uppercase tracking-widest">{equipmentList.length} Total Items</span>
+          <span className={`text-sm font-bold uppercase tracking-widest ${countText}`}>{equipmentList.length} Total Items</span>
         </div>
-
         <table className="w-full text-left">
           <thead>
-            <tr className="text-xs font-bold text-white/20 uppercase tracking-[0.2em]">
+            <tr className={`text-xs font-bold uppercase tracking-[0.2em] ${tableHead}`}>
               <th className="px-10 py-8">Asset Tag</th>
               <th className="px-10 py-8">Equipment Name</th>
               <th className="px-10 py-8 text-center">Status</th>
               <th className="px-10 py-8 text-right">Management</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/5">
+          <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
             {equipmentList.map((item) => (
-              <tr key={item.id} className="hover:bg-white/[0.03] transition-all">
-                <td className="px-10 py-8 text-white/40 font-medium tracking-wider">{item.assetTag}</td>
+              <tr key={item.id} className={`transition-all ${isDarkMode ? 'hover:bg-white/[0.03]' : 'hover:bg-slate-50'}`}>
+                <td className={`px-10 py-8 font-medium tracking-wider ${assetText}`}>{item.assetTag}</td>
                 <td className="px-10 py-8 text-xl font-bold">
                   {editingId === item.id ? (
-                    <input autoFocus value={editName} onChange={(e) => setEditName(e.target.value)} onBlur={() => handleUpdate(item.id)} onKeyDown={(e) => e.key === 'Enter' && handleUpdate(item.id)} className="bg-white/10 border border-[#3852A4] outline-none px-4 py-2 rounded-xl w-full" />
+                    <input autoFocus value={editName} onChange={(e) => setEditName(e.target.value)}
+                      onBlur={() => handleUpdate(item.id)} onKeyDown={(e) => e.key === 'Enter' && handleUpdate(item.id)}
+                      className={`border border-[#3852A4] outline-none px-4 py-2 rounded-xl w-full ${editInput}`} />
                   ) : item.name}
                 </td>
                 <td className="px-10 py-8 text-center">
