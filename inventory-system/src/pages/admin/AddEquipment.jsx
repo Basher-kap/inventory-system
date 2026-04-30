@@ -291,12 +291,15 @@ export default function AddEquipmentPage() {
                       <td className="px-6 sm:px-10 py-6 sm:py-8 text-center">
                         <div className="bg-white p-2 rounded-lg sm:rounded-xl inline-block shadow-sm relative">
                           <QRCodeSVG id={`qr-${item.id}`} value={`${import.meta.env.VITE_APP_URL}/borrow/${item.id}`} size={64} level={"H"} includeMargin={false} />
+                          <div style={{position:'absolute',left:'-9999px',top:'-9999px'}}>
+                            <QRCodeSVG id={`qr-dl-${item.id}`} value={`${import.meta.env.VITE_APP_URL}/borrow/${item.id}`} size={512} level={"H"} includeMargin={true} />
+                          </div>
                           {isBulk && <div className="absolute -top-2 -right-2 bg-[#3852A4] text-white text-[6px] sm:text-[8px] font-bold px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full shadow-lg">BULK</div>}
                         </div>
                         <div className="mt-2 flex flex-col items-center gap-1">
                           {/* TEST LINK COMMENTED OUT FOR REDEPLOYMENT[cite: 14] */}
                           {/* <a href={`/borrow/${item.id}`} target="_blank" rel="noreferrer" className="text-[8px] sm:text-[10px] font-bold text-blue-400 hover:underline uppercase tracking-widest cursor-pointer whitespace-nowrap">Test Link</a> */}
-                          <button onClick={() => downloadQRCode(`qr-${item.id}`, `QR_${item.assetTag}`)} className="text-[8px] sm:text-[10px] font-bold text-[#3852A4] hover:underline uppercase tracking-widest cursor-pointer whitespace-nowrap">Download PNG</button>
+                          <button onClick={() => downloadQRCode(`qr-dl-${item.id}`, `QR_${item.assetTag}`)} className="text-[8px] sm:text-[10px] font-bold text-[#3852A4] hover:underline uppercase tracking-widest cursor-pointer whitespace-nowrap">Download PNG</button>
                         </div>
                       </td>
                       <td className="px-6 sm:px-10 py-6 sm:py-8 text-right space-x-3 sm:space-x-6 whitespace-nowrap">
@@ -328,11 +331,14 @@ export default function AddEquipmentPage() {
                         <td className="px-6 sm:px-10 py-6 sm:py-8 text-center">
                           <div className="bg-white p-2 rounded-lg sm:rounded-xl inline-block shadow-sm relative">
                             <QRCodeSVG id={`qr-${item.id}`} value={`${import.meta.env.VITE_APP_URL}/borrow/${item.id}`} size={64} level={"H"} includeMargin={false} />
+                          <div style={{position:'absolute',left:'-9999px',top:'-9999px'}}>
+                            <QRCodeSVG id={`qr-dl-${item.id}`} value={`${import.meta.env.VITE_APP_URL}/borrow/${item.id}`} size={512} level={"H"} includeMargin={true} />
+                          </div>
                           </div>
                           <div className="mt-2 flex flex-col items-center gap-1">
                             {/* TEST LINK COMMENTED OUT FOR REDEPLOYMENT[cite: 14] */}
                             {/* <a href={`/borrow/${item.id}`} target="_blank" rel="noreferrer" className="text-[8px] sm:text-[10px] font-bold text-blue-400 hover:underline uppercase tracking-widest cursor-pointer whitespace-nowrap">Test Link</a> */}
-                            <button onClick={() => downloadQRCode(`qr-${item.id}`, `QR_${item.assetTag}`)} className="text-[8px] sm:text-[10px] font-bold text-[#3852A4] hover:underline uppercase tracking-widest cursor-pointer whitespace-nowrap">Download PNG</button>
+                            <button onClick={() => downloadQRCode(`qr-dl-${item.id}`, `QR_${item.assetTag}`)} className="text-[8px] sm:text-[10px] font-bold text-[#3852A4] hover:underline uppercase tracking-widest cursor-pointer whitespace-nowrap">Download PNG</button>
                           </div>
                         </td>
                         <td className="px-6 sm:px-10 py-6 sm:py-8 text-right space-x-3 sm:space-x-6 whitespace-nowrap">
