@@ -31,27 +31,53 @@ export default function AddEquipmentPage() {
     setTimeout(() => setToast({ show: false, message: '' }), 3000);
   };
 
+  // FIXED: Robust High-Resolution Download Function[cite: 13, 14]
   const downloadQRCode = (id, fileName) => {
     const svg = document.getElementById(id);
-    const svgData = new XMLSerializer().serializeToString(svg);
+    if (!svg) return;
+
+    // 1. Clone the SVG and ensure the XML Namespace is present[cite: 13]
+    const svgClone = svg.cloneNode(true);
+    svgClone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    const svgData = new XMLSerializer().serializeToString(svgClone);
+
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     const img = new Image();
 
-    // Size set for HD printing
-    const size = 512;
+    // 2. Set HD resolution (2048px) for high-quality printing[cite: 13, 14]
+    const size = 2048;
 
     img.onload = () => {
       canvas.width = size;
       canvas.height = size;
+
+      // 3. Keep QR edges crisp (Disable smoothing)[cite: 13]
+      ctx.imageSmoothingEnabled = false;
+
+      // 4. Fill background with white (Required for physical scanners)[cite: 13]
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, 0, size, size);
+
+      // 5. Draw the SVG image onto the canvas[cite: 13]
       ctx.drawImage(img, 0, 0, size, size);
-      const pngFile = canvas.toDataURL("image/png");
-      const downloadLink = document.createElement("a");
-      downloadLink.download = `${fileName}.png`;
-      downloadLink.href = pngFile;
-      downloadLink.click();
+
+      // 6. Secure Blob-based download[cite: 13]
+      canvas.toBlob((blob) => {
+        const url = URL.createObjectURL(blob);
+        const downloadLink = document.createElement("a");
+        downloadLink.download = `${fileName}_HD.png`;
+        downloadLink.href = url;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+        URL.revokeObjectURL(url);
+      }, "image/png", 1.0);
     };
-    img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
+
+    // Correctly handle Blob encoding[cite: 13]
+    const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+    img.src = URL.createObjectURL(svgBlob);
   };
 
   useEffect(() => {
@@ -136,7 +162,6 @@ export default function AddEquipmentPage() {
     return acc;
   }, {}));
 
-  // Style Constants
   const pageBg = isDarkMode ? 'bg-[#050B14] text-white' : 'bg-slate-50 text-slate-900';
   const cardBg = isDarkMode ? 'bg-white/[0.03] border-white/10' : 'bg-white border-slate-200 shadow-xl shadow-slate-200/40';
   const inputBg = isDarkMode ? 'bg-black/40 border-white/10 placeholder:text-white/10' : 'bg-white border-slate-300 placeholder:text-slate-400 text-slate-900';
@@ -156,14 +181,12 @@ export default function AddEquipmentPage() {
   return (
     <div className={`min-h-screen w-full p-4 sm:p-6 md:p-12 lg:p-16 flex flex-col items-center overflow-y-auto relative transition-colors duration-500 ${pageBg}`} style={{ fontFamily: "ui-monospace, monospace" }}>
 
-      {/* Toast */}
       <div className={`fixed bottom-4 sm:bottom-10 right-4 sm:right-10 z-[60] transition-all duration-500 transform ${toast.show ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0 pointer-events-none'}`}>
         <div className={`px-6 sm:px-8 py-3 sm:py-4 rounded-xl sm:rounded-2xl backdrop-blur-2xl border shadow-2xl ${isDarkMode ? 'bg-white/10 border-white/10 text-white' : 'bg-slate-900 border-slate-800 text-white'}`}>
           <span className="text-[10px] sm:text-xs font-black tracking-[0.3em] uppercase opacity-80">{toast.message}</span>
         </div>
       </div>
 
-      {/* Delete Modal */}
       {deleteModal.show && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-pointer" onClick={() => setDeleteModal({ show: false, itemId: null })}></div>
@@ -178,12 +201,10 @@ export default function AddEquipmentPage() {
         </div>
       )}
 
-      {/* Back to Dashboard */}
       <button onClick={() => navigate('/dashboard')} className={`self-start text-base sm:text-lg transition-all mb-8 sm:mb-12 flex items-center gap-2 cursor-pointer ${isDarkMode ? 'text-white/40 hover:text-white' : 'text-slate-400 hover:text-slate-900'}`}>
         <span className="text-xl sm:text-2xl">←</span> Back to Dashboard
       </button>
 
-      {/* Form Card */}
       <div className={`w-full max-w-6xl p-6 sm:p-8 md:p-12 backdrop-blur-3xl border rounded-[2rem] sm:rounded-[3rem] mb-10 sm:mb-16 shadow-2xl ${cardBg}`}>
         <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-2 sm:mb-4">Add Equipment</h1>
         <p className={`text-base sm:text-xl mb-8 sm:mb-12 ${subText}`}>Register and track new lab assets.</p>
@@ -233,16 +254,14 @@ export default function AddEquipmentPage() {
         </form>
       </div>
 
-      {/* Inventory Table Container with Horizontal Scroll */}
       <div className={`w-full max-w-6xl border rounded-[2rem] sm:rounded-[3rem] shadow-xl overflow-hidden ${isDarkMode ? 'bg-white/[0.02] border-white/10' : 'bg-white border-slate-200'}`}>
         <div className={`p-6 sm:p-10 border-b flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0 ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
           <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Active Inventory</h2>
           <span className={`text-xs sm:text-sm font-bold uppercase tracking-widest ${countText}`}>{equipmentList.length} Total Entries</span>
         </div>
 
-        {/* Enable horizontal scrolling for the table itself */}
         <div className="overflow-x-auto w-full">
-          <table className="w-full text-left min-w-[800px]"> {/* min-w prevents columns from squishing too much */}
+          <table className="w-full text-left min-w-[800px]">
             <thead>
               <tr className={`text-[10px] sm:text-xs font-bold uppercase tracking-[0.2em] ${tableHead}`}>
                 <th className="px-6 sm:px-10 py-6 sm:py-8 whitespace-nowrap">Asset Tag</th>
@@ -271,12 +290,12 @@ export default function AddEquipmentPage() {
                       </td>
                       <td className="px-6 sm:px-10 py-6 sm:py-8 text-center">
                         <div className="bg-white p-2 rounded-lg sm:rounded-xl inline-block shadow-sm relative">
-                          {/* Slightly smaller on screen, but downloads HD */}
-                          <QRCodeSVG id={`qr-${item.id}`} value={`${window.location.origin}/borrow/${item.id}`} size={48} sm:size={64} level={"H"} includeMargin={false} />
+                          <QRCodeSVG id={`qr-${item.id}`} value={`${window.location.origin}/borrow/${item.id}`} size={64} level={"H"} includeMargin={false} />
                           {isBulk && <div className="absolute -top-2 -right-2 bg-[#3852A4] text-white text-[6px] sm:text-[8px] font-bold px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full shadow-lg">BULK</div>}
                         </div>
                         <div className="mt-2 flex flex-col items-center gap-1">
-                          <a href={`/borrow/${item.id}`} target="_blank" rel="noreferrer" className="text-[8px] sm:text-[10px] font-bold text-blue-400 hover:underline uppercase tracking-widest cursor-pointer whitespace-nowrap">Test Link</a>
+                          {/* TEST LINK COMMENTED OUT FOR REDEPLOYMENT[cite: 14] */}
+                          {/* <a href={`/borrow/${item.id}`} target="_blank" rel="noreferrer" className="text-[8px] sm:text-[10px] font-bold text-blue-400 hover:underline uppercase tracking-widest cursor-pointer whitespace-nowrap">Test Link</a> */}
                           <button onClick={() => downloadQRCode(`qr-${item.id}`, `QR_${item.assetTag}`)} className="text-[8px] sm:text-[10px] font-bold text-[#3852A4] hover:underline uppercase tracking-widest cursor-pointer whitespace-nowrap">Download PNG</button>
                         </div>
                       </td>
@@ -308,11 +327,11 @@ export default function AddEquipmentPage() {
                         <td className="px-6 sm:px-10 py-6 sm:py-8 text-center whitespace-nowrap"><span className={`px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase tracking-widest ${item.status === 'available' ? badgeAvailable : badgeUnavailable}`}>{item.status}</span></td>
                         <td className="px-6 sm:px-10 py-6 sm:py-8 text-center">
                           <div className="bg-white p-2 rounded-lg sm:rounded-xl inline-block shadow-sm relative">
-                            {/* Slightly smaller on screen, but downloads HD */}
-                            <QRCodeSVG id={`qr-${item.id}`} value={`${window.location.origin}/borrow/${item.id}`} size={48} sm:size={64} level={"H"} includeMargin={false} />
+                            <QRCodeSVG id={`qr-${item.id}`} value={`${window.location.origin}/borrow/${item.id}`} size={64} level={"H"} includeMargin={false} />
                           </div>
                           <div className="mt-2 flex flex-col items-center gap-1">
-                            <a href={`/borrow/${item.id}`} target="_blank" rel="noreferrer" className="text-[8px] sm:text-[10px] font-bold text-blue-400 hover:underline uppercase tracking-widest cursor-pointer whitespace-nowrap">Test Link</a>
+                            {/* TEST LINK COMMENTED OUT FOR REDEPLOYMENT[cite: 14] */}
+                            {/* <a href={`/borrow/${item.id}`} target="_blank" rel="noreferrer" className="text-[8px] sm:text-[10px] font-bold text-blue-400 hover:underline uppercase tracking-widest cursor-pointer whitespace-nowrap">Test Link</a> */}
                             <button onClick={() => downloadQRCode(`qr-${item.id}`, `QR_${item.assetTag}`)} className="text-[8px] sm:text-[10px] font-bold text-[#3852A4] hover:underline uppercase tracking-widest cursor-pointer whitespace-nowrap">Download PNG</button>
                           </div>
                         </td>
