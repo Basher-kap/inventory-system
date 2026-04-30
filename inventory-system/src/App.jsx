@@ -1,7 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-
-// Import Context and Guard
+import { ThemeProvider } from './context/ThemeContext'; // Import Theme
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -15,55 +14,20 @@ import GenerateReports from './pages/admin/GenerateReports';
 
 export default function App() {
   return (
-    // Wrap the entire app so auth state is available everywhere
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<LoginPage />} />
+    <ThemeProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<LoginPage />} />
 
-          {/* Locked Dashboard Route */}
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <DashboardPage />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Locked Equipment Management Route */}
-          <Route
-            path="/equipment"
-            element={
-              <ProtectedRoute>
-                <AddEquipmentPage />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Locked Borrow Logs Route */}
-          <Route
-            path="/logs"
-            element={
-              <ProtectedRoute>
-                <ReviewBorrowLogs />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Locked Reports Route */}
-          <Route
-            path="/reports"
-            element={
-              <ProtectedRoute>
-                <GenerateReports />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+            <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+            <Route path="/equipment" element={<ProtectedRoute><AddEquipmentPage /></ProtectedRoute>} />
+            <Route path="/logs" element={<ProtectedRoute><ReviewBorrowLogs /></ProtectedRoute>} />
+            <Route path="/reports" element={<ProtectedRoute><GenerateReports /></ProtectedRoute>} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

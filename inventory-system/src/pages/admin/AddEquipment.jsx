@@ -55,7 +55,7 @@ export default function AddEquipmentPage() {
           name, category, assetTag, status: 'available', dateAdded: new Date().toISOString()
         });
       }
-      showToast(`Added ${quantity} items.`);
+      showToast(`Added ${quantity} item(s).`);
       setName(''); setQuantity(1);
     } catch (error) { showToast("Error adding equipment."); }
     finally { setIsLoading(false); }
