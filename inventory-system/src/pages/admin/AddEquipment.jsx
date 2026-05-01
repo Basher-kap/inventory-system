@@ -260,7 +260,7 @@ export default function AddEquipmentPage() {
             </div>
             <div onClick={() => setTrackingType('bulk')} className={`flex-1 p-4 sm:p-6 rounded-2xl sm:rounded-3xl border cursor-pointer transition-all ${trackingType === 'bulk' ? `border-[#3852A4] shadow-[0_0_15px_rgba(56,82,164,0.15)] ${isDarkMode ? 'bg-[#3852A4]/10 text-blue-100' : 'bg-blue-50/50 text-[#3852A4]'}` : inputBg}`}>
               <h4 className="font-bold uppercase tracking-widest text-xs sm:text-sm mb-1">Bulk Tracking</h4>
-              <p className={`text-[9px] sm:text-[10px] uppercase tracking-widest ${trackingType === 'bulk' ? 'opacity-80' : 'opacity-40'}`}>1 QR code for the entire quantity.</p>
+              <p className={`text-[9px] sm:text-[10px] uppercase tracking-widest ${trackingType === 'bulk' ? 'opacity-80' : 'opacity-40'}`}>1 QR code for the entire quantity or group.</p>
             </div>
           </div>
 
