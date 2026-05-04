@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { doc, getDoc, collection, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase/firebase.config';
@@ -25,6 +25,7 @@ export default function BorrowFormPage() {
   const [role, setRole] = useState('');
   const [isRoleOpen, setIsRoleOpen] = useState(false);
   const [borrowQuantity, setBorrowQuantity] = useState(1);
+  const isViewOnly = false;
 
   const roleRef = useRef(null);
   const roles = ["Student", "Faculty", "Staff", "Other"];
@@ -32,8 +33,6 @@ export default function BorrowFormPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [confirmationTime, setConfirmationTime] = useState('');
-
-  const [isViewOnly, setIsViewOnly] = useState(false);
 
   const dismissKeyboard = () => {
     if (document.activeElement instanceof HTMLElement) {

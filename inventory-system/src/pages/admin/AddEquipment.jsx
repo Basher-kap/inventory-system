@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { Fragment, useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, onSnapshot, doc, deleteDoc, updateDoc, writeBatch, serverTimestamp, query, orderBy, limit } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, writeBatch, serverTimestamp, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../firebase/firebase.config';
 import { useTheme } from '../../context/ThemeContext';
 import { QRCodeSVG } from 'qrcode.react';
@@ -716,7 +716,7 @@ export default function AddEquipmentPage() {
                 }
 
                 return (
-                  <React.Fragment key={group.key}>
+                  <Fragment key={group.key}>
                     <tr className={`transition-all ${isDarkMode ? 'bg-white/[0.05] hover:bg-white/[0.08]' : 'bg-slate-100 hover:bg-slate-200'}`}>
                       <td className={`px-6 sm:px-10 py-4 sm:py-6 font-bold uppercase tracking-wide text-xs sm:text-sm opacity-60 ${assetText} whitespace-nowrap`}>{group.items.length} Units</td>
                       <td className="px-6 sm:px-10 py-4 sm:py-6 text-lg sm:text-xl font-bold whitespace-nowrap">
@@ -847,7 +847,7 @@ export default function AddEquipmentPage() {
                         </td>
                       </tr>
                     ))}
-                  </React.Fragment>
+                  </Fragment>
                 );
               })}
             </tbody>
