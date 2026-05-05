@@ -1,46 +1,78 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, onSnapshot, query, orderBy, doc, updateDoc, deleteDoc, getDoc, limit } from 'firebase/firestore';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Html5Qrcode } from 'html5-qrcode';
 import { db } from '../../firebase/firebase.config';
 import { useTheme } from '../../context/ThemeContext';
 
-// NEW: Dedicated Scanner Component to handle camera lifecycle cleanly
+// REDESIGNED: Custom Core Scanner Modal (Instant Camera, No Clunky UI)
 const ScannerModal = ({ isDarkMode, onClose, onScanSuccess }) => {
-  useEffect(() => {
-    const scanner = new Html5QrcodeScanner(
-      "qr-reader",
-      { fps: 10, qrbox: { width: 250, height: 250 } },
-      false
-    );
+  const [cameraError, setCameraError] = useState('');
 
-    const handleScan = (decodedText) => {
-      scanner.clear();
-      onScanSuccess(decodedText);
+  useEffect(() => {
+    // We use the core Html5Qrcode class instead of Html5QrcodeScanner
+    // to completely bypass the library's default ugly UI.
+    const html5QrCode = new Html5Qrcode("qr-reader");
+
+    const startScanner = async () => {
+      try {
+        await html5QrCode.start(
+          { facingMode: "environment" }, // Prefer back camera on mobile/tablets
+          {
+            fps: 15, // Higher frame rate for faster scanning
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0
+          },
+          (decodedText) => {
+            // Stop camera instantly on success to prevent multiple fires
+            html5QrCode.stop().then(() => {
+              onScanSuccess(decodedText);
+            }).catch(console.error);
+          },
+          () => {
+            // Ignore frame-by-frame background parse errors
+          }
+        );
+      } catch (err) {
+        console.error("Camera initialization failed:", err);
+        setCameraError("Camera access denied or device not found. Please check browser permissions.");
+      }
     };
 
-    scanner.render(handleScan, () => {
-      // Ignore routine background scan errors
-    });
+    startScanner();
 
+    // Cleanup: Ensure camera turns off when modal is closed
     return () => {
-      scanner.clear().catch(console.error);
+      if (html5QrCode.isScanning) {
+        html5QrCode.stop().catch(console.error);
+      }
     };
   }, [onScanSuccess]);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose}></div>
-      <div className={`relative w-full max-w-md p-6 sm:p-8 rounded-[2rem] shadow-2xl ${isDarkMode ? 'bg-[#050B14] border border-white/10 text-white' : 'bg-white border border-slate-200 text-slate-900'}`}>
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-xl sm:text-2xl font-bold">Scan Equipment</h3>
-          <button onClick={onClose} className={`transition-all cursor-pointer ${isDarkMode ? 'text-white/40 hover:text-white' : 'text-slate-400 hover:text-slate-800'}`}>
-            <span className="material-icons-outlined text-2xl">close</span>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-md cursor-pointer" onClick={onClose}></div>
+      <div className={`relative w-full max-w-md p-6 sm:p-10 backdrop-blur-3xl border rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col ${isDarkMode ? 'bg-gradient-to-br from-white/10 to-[#050B14] border-white/10 text-white' : 'bg-white border-slate-200 text-slate-900'}`}>
+
+        <div className="flex justify-between items-center mb-6 sm:mb-8">
+          <h3 className="text-xl sm:text-2xl font-bold tracking-normal">Scan Asset</h3>
+          <button onClick={onClose} className={`text-xs font-bold uppercase tracking-widest transition-all cursor-pointer ${isDarkMode ? 'text-white/40 hover:text-white' : 'text-slate-400 hover:text-slate-900'}`}>
+            Close
           </button>
         </div>
-        <div id="qr-reader" className="w-full overflow-hidden rounded-2xl border-2 border-[#3852A4]/30"></div>
-        <p className={`mt-6 text-center text-xs sm:text-sm tracking-wide uppercase font-bold ${isDarkMode ? 'text-white/40' : 'text-slate-500'}`}>
-          Point camera at the equipment QR code
+
+        {cameraError ? (
+          <div className="w-full p-8 text-center rounded-3xl border border-red-500/30 bg-red-500/10 text-red-500 font-bold text-sm">
+            {cameraError}
+          </div>
+        ) : (
+          <div className={`w-full overflow-hidden rounded-2xl sm:rounded-3xl border transition-all ${isDarkMode ? 'bg-black/60 border-white/10' : 'bg-slate-100 border-slate-200'}`}>
+            <div id="qr-reader" className="w-full flex items-center justify-center min-h-[250px] [&>video]:object-cover [&>video]:rounded-2xl sm:[&>video]:rounded-3xl"></div>
+          </div>
+        )}
+
+        <p className={`mt-8 text-center text-[10px] sm:text-xs tracking-widest uppercase font-bold ${isDarkMode ? 'text-white/30' : 'text-slate-400'}`}>
+          Hold item up to the camera
         </p>
       </div>
     </div>
@@ -99,26 +131,20 @@ export default function ReviewBorrowLogs() {
     return () => unsubscribe();
   }, []);
 
-  // NEW: Process the URL decoded from the scanner
   const handleScanSuccess = (decodedText) => {
     setIsScannerOpen(false);
 
     try {
-      // Extract the document ID from the URL (e.g., http://.../borrow/abc123xyz)
       const urlParts = decodedText.split('/');
       const equipmentId = urlParts[urlParts.length - 1];
 
-      // Find all active logs matching this exact equipment piece
       const activeLogsForEquipment = logs.filter(l => l.equipmentId === equipmentId && l.status === 'Active');
 
       if (activeLogsForEquipment.length === 1) {
-        // Perfect match: One item, one borrower
         initiateReturn(activeLogsForEquipment[0]);
       } else if (activeLogsForEquipment.length > 1) {
-        // Bulk items might be checked out to multiple people simultaneously
         showToast(`Found ${activeLogsForEquipment.length} active logs for this bulk item. Please select the correct student manually.`, 'default');
       } else {
-        // Not currently checked out
         showToast("No active borrow log found for this scanned item.", "delete");
       }
     } catch (err) {
@@ -205,13 +231,12 @@ export default function ReviewBorrowLogs() {
       <div className={`fixed bottom-4 sm:bottom-10 right-4 sm:right-10 z-[60] transition-all duration-500 transform ${toast.show ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0 pointer-events-none'}`}>
         <div className={`px-6 sm:px-8 py-3 sm:py-4 rounded-xl sm:rounded-2xl backdrop-blur-2xl border shadow-2xl transition-colors duration-300 flex items-center gap-3 ${getToastStyle()}`}>
           {toast.type === 'delete' && (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+            <span className="text-[10px] font-black uppercase tracking-widest text-red-500 mr-2">Error</span>
           )}
           <span className="text-xs sm:text-sm font-bold tracking-wide uppercase opacity-90">{toast.message}</span>
         </div>
       </div>
 
-      {/* NEW: Scanner Modal Render */}
       {isScannerOpen && (
         <ScannerModal
           isDarkMode={isDarkMode}
@@ -252,7 +277,7 @@ export default function ReviewBorrowLogs() {
         <span className="text-xl sm:text-3xl">←</span> Back to Dashboard
       </button>
 
-      <div className="w-full max-w-7xl mb-8 sm:mb-12 text-left flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+      <div className="w-full max-w-7xl mb-8 sm:mb-12 text-left flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
         <div>
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-normal mb-2 sm:mb-4">Borrow Logs</h1>
           <p className={`text-base sm:text-xl md:text-2xl uppercase tracking-wide font-bold ${isDarkMode ? 'text-blue-100/40' : 'text-slate-400'}`}>
@@ -262,17 +287,19 @@ export default function ReviewBorrowLogs() {
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full md:w-auto">
           {overdueCount > 0 && (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-500 px-6 py-3 rounded-2xl animate-pulse whitespace-nowrap text-center">
-              <span className="font-bold text-sm sm:text-base uppercase tracking-wide">⚠️ {overdueCount} Overdue Item{overdueCount > 1 ? 's' : ''}</span>
+            <div className="bg-red-500/10 border border-red-500/20 text-red-500 px-6 py-3.5 rounded-[1.25rem] animate-pulse whitespace-nowrap text-center">
+              <span className="font-bold text-xs sm:text-sm uppercase tracking-wide">⚠️ {overdueCount} Overdue Item{overdueCount > 1 ? 's' : ''}</span>
             </div>
           )}
 
-          {/* NEW: Activate Scanner Button */}
+          {/* REDESIGNED: High Contrast Scan Button (No Icons, Sleek Typography) */}
           <button
             onClick={() => setIsScannerOpen(true)}
-            className="bg-[#3852A4] hover:bg-[#2a3f82] text-white px-6 py-3 rounded-2xl font-bold uppercase tracking-wide text-sm sm:text-base transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
+            className={`px-8 py-3.5 rounded-[1.25rem] font-bold uppercase tracking-widest text-xs sm:text-sm transition-all shadow-lg active:scale-95 text-center cursor-pointer border
+              ${isDarkMode
+                ? 'bg-white text-[#050B14] border-transparent hover:bg-slate-200'
+                : 'bg-slate-900 text-white border-transparent hover:bg-slate-800'}`}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
             Scan to Return
           </button>
         </div>
@@ -348,29 +375,28 @@ export default function ReviewBorrowLogs() {
                           {log.status === 'Active' ? (
                             <button
                               onClick={() => initiateReturn(log)}
-                              className={`px-4 sm:px-6 py-2 sm:py-3 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm tracking-wide uppercase transition-all shadow-sm active:scale-95 cursor-pointer flex items-center gap-2 border
+                              className={`px-6 py-2.5 rounded-full font-bold text-[10px] sm:text-xs tracking-widest uppercase transition-all shadow-sm active:scale-95 cursor-pointer border
                                 ${isOverdue
                                   ? 'bg-red-500 text-white border-red-600 hover:bg-red-600 shadow-[0_0_15px_rgba(239,68,68,0.3)]'
                                   : isDarkMode
-                                    ? 'bg-white/[0.05] border-white/10 text-white hover:bg-[#3852A4]/20'
-                                    : 'bg-white border-slate-200 text-slate-600 hover:bg-blue-50'
+                                    ? 'bg-white/[0.05] border-white/10 text-white hover:bg-white/10'
+                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                                 }`}
                             >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
                               Receive
                             </button>
                           ) : (
-                            <div className={`text-xs sm:text-sm font-bold tracking-wide uppercase ${isDarkMode ? 'text-white/20' : 'text-slate-400'}`}>
+                            <div className={`text-[10px] sm:text-xs font-bold tracking-widest uppercase ${isDarkMode ? 'text-white/20' : 'text-slate-400'}`}>
                               Returned <br/> {log.dateReturned?.split(',')[0]}
                             </div>
                           )}
 
                           <button
                             onClick={() => initiateDelete(log.id)}
-                            className={`p-2 sm:p-3 rounded-xl transition-all opacity-30 hover:opacity-100 hover:bg-red-500/10 hover:text-red-500 cursor-pointer ${isDarkMode ? 'text-white' : 'text-slate-400'}`}
+                            className={`text-[10px] font-bold uppercase tracking-widest p-2 sm:p-2.5 rounded-full transition-all opacity-40 hover:opacity-100 hover:bg-red-500/10 hover:text-red-500 cursor-pointer ${isDarkMode ? 'text-white' : 'text-slate-500'}`}
                             title="Delete Log"
                           >
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                            Delete
                           </button>
                         </div>
                       </td>
