@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { doc, getDoc, collection, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase/firebase.config';
@@ -25,6 +25,7 @@ export default function BorrowFormPage() {
   const [role, setRole] = useState('');
   const [isRoleOpen, setIsRoleOpen] = useState(false);
   const [borrowQuantity, setBorrowQuantity] = useState(1);
+  const isViewOnly = false;
 
   const roleRef = useRef(null);
   const roles = ["Student", "Faculty", "Staff", "Other"];
@@ -32,8 +33,6 @@ export default function BorrowFormPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [confirmationTime, setConfirmationTime] = useState('');
-
-  const [isViewOnly, setIsViewOnly] = useState(false);
 
   const dismissKeyboard = () => {
     if (document.activeElement instanceof HTMLElement) {
@@ -205,7 +204,7 @@ export default function BorrowFormPage() {
               </svg>
             </div>
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 tracking-tight">Checkout Confirmed</h2>
-            <p className="opacity-50 leading-relaxed text-base sm:text-lg mb-8">Your request has been recorded. Please take a screenshot for your records.</p>
+            <p className="opacity-50 leading-relaxed text-base sm:text-lg mb-8">Your request has been recorded, please take a screenshot. You can now close this page.</p>
 
             <div className="pt-8 border-t border-white/5 flex flex-col items-center gap-2 mb-8">
               <span className={`text-[9px] sm:text-[10px] font-black uppercase tracking-[0.3em] ${isDarkMode ? 'text-white/20' : 'text-slate-300'}`}>Transaction Verified</span>

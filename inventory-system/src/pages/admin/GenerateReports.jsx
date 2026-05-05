@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase/firebase.config';
@@ -201,14 +201,6 @@ export default function GenerateReports() {
                                  : 'bg-slate-900 text-white border-slate-900 hover:bg-slate-800';
   const footerText = isDarkMode ? 'text-white/20'                   : 'text-slate-300';
 
-  const DropdownChevron = ({ isOpen }) => (
-    <svg width="16" height="16" sm:width="20" sm:height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-      strokeLinecap="round" strokeLinejoin="round"
-      className={`transition-transform duration-300 ${isOpen ? 'rotate-180 text-[#3852A4]' : chevron}`}>
-      <path d="M6 9l6 6 6-6"/>
-    </svg>
-  );
-
   return (
     <div
       className={`min-h-screen w-full overflow-y-auto p-4 sm:p-6 md:p-12 lg:p-16 flex flex-col items-center relative transition-colors duration-500 ${pageBg}`}
@@ -239,7 +231,7 @@ export default function GenerateReports() {
               className={`w-full border rounded-2xl sm:rounded-3xl px-4 sm:px-8 py-4 sm:py-6 text-sm sm:text-xl cursor-pointer transition-all flex justify-between items-center ${inputBg} ${isReportOpen ? 'border-[#3852A4] ring-1 ring-[#3852A4]/50' : ''}`}
             >
               <span className="truncate mr-4">{reportType}</span>
-              <DropdownChevron isOpen={isReportOpen} />
+              <DropdownChevron isOpen={isReportOpen} inactiveClassName={chevron} />
             </div>
             {isReportOpen && (
               <div className={`absolute top-[calc(100%+8px)] sm:top-[calc(100%+10px)] left-0 w-full backdrop-blur-2xl border rounded-2xl sm:rounded-3xl overflow-hidden z-[80] shadow-2xl ${dropdownBg}`}>
@@ -260,7 +252,7 @@ export default function GenerateReports() {
               className={`w-full border rounded-2xl sm:rounded-3xl px-4 sm:px-8 py-4 sm:py-6 text-sm sm:text-xl cursor-pointer transition-all flex justify-between items-center ${inputBg} ${isFormatOpen ? 'border-[#3852A4] ring-1 ring-[#3852A4]/50' : ''}`}
             >
               <span className="truncate mr-4">{format}</span>
-              <DropdownChevron isOpen={isFormatOpen} />
+              <DropdownChevron isOpen={isFormatOpen} inactiveClassName={chevron} />
             </div>
             {isFormatOpen && (
               <div className={`absolute top-[calc(100%+8px)] sm:top-[calc(100%+10px)] left-0 w-full backdrop-blur-2xl border rounded-2xl sm:rounded-3xl overflow-hidden z-[80] shadow-2xl ${dropdownBg}`}>
@@ -289,5 +281,23 @@ export default function GenerateReports() {
         </p>
       </div>
     </div>
+  );
+}
+
+function DropdownChevron({ isOpen, inactiveClassName }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`transition-transform duration-300 ${isOpen ? 'rotate-180 text-[#3852A4]' : inactiveClassName}`}
+    >
+      <path d="M6 9l6 6 6-6" />
+    </svg>
   );
 }

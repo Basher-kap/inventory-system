@@ -1,8 +1,51 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, onSnapshot, query, orderBy, doc, updateDoc, deleteDoc, getDoc, limit } from 'firebase/firestore';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 import { db } from '../../firebase/firebase.config';
 import { useTheme } from '../../context/ThemeContext';
+
+// NEW: Dedicated Scanner Component to handle camera lifecycle cleanly
+const ScannerModal = ({ isDarkMode, onClose, onScanSuccess }) => {
+  useEffect(() => {
+    const scanner = new Html5QrcodeScanner(
+      "qr-reader",
+      { fps: 10, qrbox: { width: 250, height: 250 } },
+      false
+    );
+
+    const handleScan = (decodedText) => {
+      scanner.clear();
+      onScanSuccess(decodedText);
+    };
+
+    scanner.render(handleScan, () => {
+      // Ignore routine background scan errors
+    });
+
+    return () => {
+      scanner.clear().catch(console.error);
+    };
+  }, [onScanSuccess]);
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose}></div>
+      <div className={`relative w-full max-w-md p-6 sm:p-8 rounded-[2rem] shadow-2xl ${isDarkMode ? 'bg-[#050B14] border border-white/10 text-white' : 'bg-white border border-slate-200 text-slate-900'}`}>
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl sm:text-2xl font-bold">Scan Equipment</h3>
+          <button onClick={onClose} className={`transition-all cursor-pointer ${isDarkMode ? 'text-white/40 hover:text-white' : 'text-slate-400 hover:text-slate-800'}`}>
+            <span className="material-icons-outlined text-2xl">close</span>
+          </button>
+        </div>
+        <div id="qr-reader" className="w-full overflow-hidden rounded-2xl border-2 border-[#3852A4]/30"></div>
+        <p className={`mt-6 text-center text-xs sm:text-sm tracking-wide uppercase font-bold ${isDarkMode ? 'text-white/40' : 'text-slate-500'}`}>
+          Point camera at the equipment QR code
+        </p>
+      </div>
+    </div>
+  );
+};
 
 export default function ReviewBorrowLogs() {
   const navigate = useNavigate();
@@ -13,6 +56,7 @@ export default function ReviewBorrowLogs() {
   const [toast, setToast] = useState({ show: false, message: '', type: 'default' });
   const [returnModal, setReturnModal] = useState({ show: false, log: null });
   const [deleteModal, setDeleteModal] = useState({ show: false, logId: null });
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   const LOG_LIMIT = 300;
 
@@ -26,6 +70,17 @@ export default function ReviewBorrowLogs() {
       return log.dateBorrowedAt.toDate().toLocaleString();
     }
     return log?.dateBorrowed || 'N/A';
+  };
+
+  const checkIsOverdue = (expectedReturnStr) => {
+    if (!expectedReturnStr || expectedReturnStr === 'N/A') return false;
+
+    const expectedDate = new Date(expectedReturnStr);
+    if (isNaN(expectedDate.getTime())) return false;
+
+    expectedDate.setHours(23, 59, 59, 999);
+    const now = new Date();
+    return now > expectedDate;
   };
 
   useEffect(() => {
@@ -43,6 +98,34 @@ export default function ReviewBorrowLogs() {
     });
     return () => unsubscribe();
   }, []);
+
+  // NEW: Process the URL decoded from the scanner
+  const handleScanSuccess = (decodedText) => {
+    setIsScannerOpen(false);
+
+    try {
+      // Extract the document ID from the URL (e.g., http://.../borrow/abc123xyz)
+      const urlParts = decodedText.split('/');
+      const equipmentId = urlParts[urlParts.length - 1];
+
+      // Find all active logs matching this exact equipment piece
+      const activeLogsForEquipment = logs.filter(l => l.equipmentId === equipmentId && l.status === 'Active');
+
+      if (activeLogsForEquipment.length === 1) {
+        // Perfect match: One item, one borrower
+        initiateReturn(activeLogsForEquipment[0]);
+      } else if (activeLogsForEquipment.length > 1) {
+        // Bulk items might be checked out to multiple people simultaneously
+        showToast(`Found ${activeLogsForEquipment.length} active logs for this bulk item. Please select the correct student manually.`, 'default');
+      } else {
+        // Not currently checked out
+        showToast("No active borrow log found for this scanned item.", "delete");
+      }
+    } catch (err) {
+      console.error("QR Parse Error:", err);
+      showToast("Invalid QR Code format.", "delete");
+    }
+  };
 
   const initiateReturn = (log) => {
     setReturnModal({ show: true, log });
@@ -107,6 +190,7 @@ export default function ReviewBorrowLogs() {
   };
 
   const activeCount = logs.filter(log => log.status === 'Active').length;
+  const overdueCount = logs.filter(log => log.status === 'Active' && checkIsOverdue(log.expectedReturn)).length;
 
   const getToastStyle = () => {
     if (toast.type === 'delete') {
@@ -126,6 +210,15 @@ export default function ReviewBorrowLogs() {
           <span className="text-xs sm:text-sm font-bold tracking-wide uppercase opacity-90">{toast.message}</span>
         </div>
       </div>
+
+      {/* NEW: Scanner Modal Render */}
+      {isScannerOpen && (
+        <ScannerModal
+          isDarkMode={isDarkMode}
+          onClose={() => setIsScannerOpen(false)}
+          onScanSuccess={handleScanSuccess}
+        />
+      )}
 
       {returnModal.show && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6">
@@ -159,21 +252,40 @@ export default function ReviewBorrowLogs() {
         <span className="text-xl sm:text-3xl">←</span> Back to Dashboard
       </button>
 
-      <div className="w-full max-w-7xl mb-8 sm:mb-12 text-left">
-        <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-normal mb-2 sm:mb-4">Borrow Logs</h1>
-        <p className={`text-base sm:text-xl md:text-2xl uppercase tracking-wide font-bold ${isDarkMode ? 'text-blue-100/40' : 'text-slate-400'}`}>
-          Live Activity Feed
-        </p>
+      <div className="w-full max-w-7xl mb-8 sm:mb-12 text-left flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+        <div>
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-normal mb-2 sm:mb-4">Borrow Logs</h1>
+          <p className={`text-base sm:text-xl md:text-2xl uppercase tracking-wide font-bold ${isDarkMode ? 'text-blue-100/40' : 'text-slate-400'}`}>
+            Live Activity Feed
+          </p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full md:w-auto">
+          {overdueCount > 0 && (
+            <div className="bg-red-500/10 border border-red-500/20 text-red-500 px-6 py-3 rounded-2xl animate-pulse whitespace-nowrap text-center">
+              <span className="font-bold text-sm sm:text-base uppercase tracking-wide">⚠️ {overdueCount} Overdue Item{overdueCount > 1 ? 's' : ''}</span>
+            </div>
+          )}
+
+          {/* NEW: Activate Scanner Button */}
+          <button
+            onClick={() => setIsScannerOpen(true)}
+            className="bg-[#3852A4] hover:bg-[#2a3f82] text-white px-6 py-3 rounded-2xl font-bold uppercase tracking-wide text-sm sm:text-base transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+            Scan to Return
+          </button>
+        </div>
       </div>
 
       <div className="w-full max-w-7xl grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8 mb-8 sm:mb-10">
         <div className={`p-6 sm:p-10 rounded-[2rem] sm:rounded-[2.5rem] flex justify-between items-center border transition-all ${isDarkMode ? 'bg-white/[0.03] border-white/10' : 'bg-white border-slate-200 shadow-xl shadow-slate-200/40'}`}>
           <span className={`font-bold uppercase tracking-wide text-xs sm:text-sm ${isDarkMode ? 'text-white/40' : 'text-slate-400'}`}>Currently Out</span>
-          <span className="text-4xl sm:text-5xl font-bold text-[#3B82F6] tracking-tighter">{activeCount}</span>
+          <span className="text-4xl sm:text-5xl font-bold text-[#3B82F6] tracking-normal truncate">{activeCount}</span>
         </div>
         <div className={`p-6 sm:p-10 rounded-[2rem] sm:rounded-[2.5rem] flex justify-between items-center border transition-all ${isDarkMode ? 'bg-white/[0.03] border-white/10' : 'bg-white border-slate-200 shadow-xl shadow-slate-200/40'}`}>
           <span className={`font-bold uppercase tracking-wide text-xs sm:text-sm ${isDarkMode ? 'text-white/40' : 'text-slate-400'}`}>Recent Records</span>
-          <span className="text-4xl sm:text-5xl font-bold tracking-tighter">{logs.length}</span>
+          <span className="text-4xl sm:text-5xl font-bold tracking-normal truncate">{logs.length}</span>
         </div>
       </div>
 
@@ -195,70 +307,77 @@ export default function ReviewBorrowLogs() {
               ) : logs.length === 0 ? (
                 <tr><td colSpan="5" className="p-16 sm:p-32 text-center opacity-50 text-base sm:text-xl">No borrowing activity recorded yet.</td></tr>
               ) : (
-                logs.map((log) => (
-                  <tr key={log.id} className={`transition-all ${isDarkMode ? 'hover:bg-white/[0.03]' : 'hover:bg-slate-50'}`}>
+                logs.map((log) => {
+                  const isOverdue = log.status === 'Active' && checkIsOverdue(log.expectedReturn);
 
-                    <td className="px-6 sm:px-8 py-6 sm:py-8 whitespace-nowrap">
-                      <span className="text-xl sm:text-2xl font-bold block mb-1">{log.borrowerName || log.studentName}</span>
-                      <span className={`text-xs sm:text-sm font-bold tracking-wide uppercase flex items-center gap-2 ${isDarkMode ? 'text-white/40' : 'text-slate-400'}`}>
-                        {log.borrowerRole || 'Student'} • ID: {log.borrowerId || log.studentId}
-                      </span>
-                    </td>
+                  return (
+                    <tr key={log.id} className={`transition-all ${isDarkMode ? 'hover:bg-white/[0.03]' : 'hover:bg-slate-50'} ${isOverdue && isDarkMode ? 'bg-red-500/[0.02]' : isOverdue && !isDarkMode ? 'bg-red-50/50' : ''}`}>
 
-                    <td className="px-6 sm:px-8 py-6 sm:py-8 text-lg sm:text-xl font-medium whitespace-nowrap">
-                      {log.quantityBorrowed > 1 && <span className="font-bold text-[#3852A4] mr-2">{log.quantityBorrowed}x</span>}
-                      {log.itemName}
-                    </td>
+                      <td className="px-6 sm:px-8 py-6 sm:py-8 whitespace-nowrap">
+                        <span className="text-xl sm:text-2xl font-bold block mb-1">{log.borrowerName || log.studentName}</span>
+                        <span className={`text-xs sm:text-sm font-bold tracking-wide uppercase flex items-center gap-2 ${isDarkMode ? 'text-white/40' : 'text-slate-400'}`}>
+                          {log.borrowerRole || 'Student'} • ID: {log.borrowerId || log.studentId}
+                        </span>
+                      </td>
 
-                    <td className="px-6 sm:px-8 py-6 sm:py-8 whitespace-nowrap">
-                      <span className={`block font-bold text-xs sm:text-sm mb-1 ${isDarkMode ? 'text-white/80' : 'text-slate-700'}`}>{formatLogDate(log)}</span>
-                      <span className={`text-xs sm:text-sm font-bold tracking-wide uppercase ${isDarkMode ? 'text-white/30' : 'text-slate-400'}`}>
-                        Due: {log.expectedReturn || 'N/A'}
-                      </span>
-                    </td>
+                      <td className="px-6 sm:px-8 py-6 sm:py-8 text-lg sm:text-xl font-medium whitespace-nowrap">
+                        {log.quantityBorrowed > 1 && <span className="font-bold text-[#3852A4] mr-2">{log.quantityBorrowed}x</span>}
+                        {log.itemName}
+                      </td>
 
-                    <td className="px-6 sm:px-8 py-6 sm:py-8 text-center whitespace-nowrap">
-                      <span className={`px-3 sm:px-5 py-1.5 sm:py-2 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wide ${
-                        log.status === 'Active' ? 'bg-[#3B82F6]/10 text-[#3B82F6]' :
-                        log.status === 'Returned' ? 'bg-slate-500/20 text-slate-400' :
-                        'bg-red-500/10 text-red-500'
-                      }`}>
-                        {log.status}
-                      </span>
-                    </td>
+                      <td className="px-6 sm:px-8 py-6 sm:py-8 whitespace-nowrap">
+                        <span className={`block font-bold text-xs sm:text-sm mb-1 ${isDarkMode ? 'text-white/80' : 'text-slate-700'}`}>{formatLogDate(log)}</span>
+                        <span className={`text-xs sm:text-sm font-bold tracking-wide uppercase ${isOverdue ? 'text-red-500' : isDarkMode ? 'text-white/30' : 'text-slate-400'}`}>
+                          Due: {log.expectedReturn || 'N/A'}
+                        </span>
+                      </td>
 
-                    <td className="px-6 sm:px-8 py-6 sm:py-8 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-4">
-                        {log.status === 'Active' ? (
+                      <td className="px-6 sm:px-8 py-6 sm:py-8 text-center whitespace-nowrap">
+                        <span className={`px-3 sm:px-5 py-1.5 sm:py-2 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wide transition-colors ${
+                          isOverdue ? 'bg-red-500/10 text-red-500 border border-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.15)]' :
+                          log.status === 'Active' ? 'bg-[#3B82F6]/10 text-[#3B82F6]' :
+                          log.status === 'Returned' ? 'bg-slate-500/20 text-slate-400' :
+                          'bg-orange-500/10 text-orange-500'
+                        }`}>
+                          {isOverdue ? 'Overdue' : log.status}
+                        </span>
+                      </td>
+
+                      <td className="px-6 sm:px-8 py-6 sm:py-8 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-4">
+                          {log.status === 'Active' ? (
+                            <button
+                              onClick={() => initiateReturn(log)}
+                              className={`px-4 sm:px-6 py-2 sm:py-3 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm tracking-wide uppercase transition-all shadow-sm active:scale-95 cursor-pointer flex items-center gap-2 border
+                                ${isOverdue
+                                  ? 'bg-red-500 text-white border-red-600 hover:bg-red-600 shadow-[0_0_15px_rgba(239,68,68,0.3)]'
+                                  : isDarkMode
+                                    ? 'bg-white/[0.05] border-white/10 text-white hover:bg-[#3852A4]/20'
+                                    : 'bg-white border-slate-200 text-slate-600 hover:bg-blue-50'
+                                }`}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                              Receive
+                            </button>
+                          ) : (
+                            <div className={`text-xs sm:text-sm font-bold tracking-wide uppercase ${isDarkMode ? 'text-white/20' : 'text-slate-400'}`}>
+                              Returned <br/> {log.dateReturned?.split(',')[0]}
+                            </div>
+                          )}
+
                           <button
-                            onClick={() => initiateReturn(log)}
-                            className={`px-4 sm:px-6 py-2 sm:py-3 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm tracking-wide uppercase transition-all shadow-sm active:scale-95 cursor-pointer flex items-center gap-2 border
-                              ${isDarkMode
-                                ? 'bg-white/[0.05] border-white/10 text-white hover:bg-[#3852A4]/20'
-                                : 'bg-white border-slate-200 text-slate-600 hover:bg-blue-50'
-                              }`}
+                            onClick={() => initiateDelete(log.id)}
+                            className={`p-2 sm:p-3 rounded-xl transition-all opacity-30 hover:opacity-100 hover:bg-red-500/10 hover:text-red-500 cursor-pointer ${isDarkMode ? 'text-white' : 'text-slate-400'}`}
+                            title="Delete Log"
                           >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                            Receive
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                           </button>
-                        ) : (
-                          <div className={`text-xs sm:text-sm font-bold tracking-wide uppercase ${isDarkMode ? 'text-white/20' : 'text-slate-400'}`}>
-                            Returned <br/> {log.dateReturned?.split(',')[0]}
-                          </div>
-                        )}
+                        </div>
+                      </td>
 
-                        <button
-                          onClick={() => initiateDelete(log.id)}
-                          className={`p-2 sm:p-3 rounded-xl transition-all opacity-30 hover:opacity-100 hover:bg-red-500/10 hover:text-red-500 cursor-pointer ${isDarkMode ? 'text-white' : 'text-slate-400'}`}
-                          title="Delete Log"
-                        >
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                        </button>
-                      </div>
-                    </td>
-
-                  </tr>
-                ))
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
