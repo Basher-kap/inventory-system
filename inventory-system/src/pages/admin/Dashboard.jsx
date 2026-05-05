@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
-import { collection, getCountFromServer, query, where } from 'firebase/firestore';
+import { collection, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../../firebase/firebase.config';
 import { useTheme } from '../../context/ThemeContext';
 
@@ -13,38 +13,44 @@ export default function DashboardPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
-    let isActive = true;
+    // REAL-TIME LISTENER: Instantly updates when borrow/return/maintenance actions occur
+    const unsubscribe = onSnapshot(collection(db, 'equipment'), (snapshot) => {
+      let totalCount = 0;
+      let availableCount = 0;
+      let borrowedCount = 0;
+      let maintenanceCount = 0;
 
-    const fetchCounts = async () => {
-      try {
-        const equipmentRef = collection(db, 'equipment');
-        const [totalSnap, availableSnap, borrowedSnap, maintenanceSnap] = await Promise.all([
-          getCountFromServer(equipmentRef),
-          getCountFromServer(query(equipmentRef, where('status', '==', 'available'))),
-          getCountFromServer(query(equipmentRef, where('status', '==', 'borrowed'))),
-          getCountFromServer(query(equipmentRef, where('status', '==', 'maintenance'))),
-        ]);
+      snapshot.forEach(doc => {
+        const item = doc.data();
+        const isBulk = item.trackingType === 'bulk';
+        const itemTotal = isBulk ? (item.totalQuantity || 1) : 1;
 
-        if (!isActive) return;
+        totalCount += itemTotal;
 
-        setStats({
-          available: availableSnap.data().count,
-          total: totalSnap.data().count,
-          borrowed: borrowedSnap.data().count,
-          maintenance: maintenanceSnap.data().count,
-        });
-      } catch (error) {
-        console.error('Stats refresh error:', error);
-      }
-    };
+        if (item.status === 'maintenance') {
+          maintenanceCount += itemTotal;
+        } else if (isBulk) {
+          const avail = item.availableQuantity || 0;
+          const borr = itemTotal - avail;
+          availableCount += avail;
+          borrowedCount += borr;
+        } else {
+          if (item.status === 'borrowed') borrowedCount += 1;
+          if (item.status === 'available') availableCount += 1;
+        }
+      });
 
-    fetchCounts();
-    const intervalId = setInterval(fetchCounts, 30000);
+      setStats({
+        total: totalCount,
+        available: availableCount,
+        borrowed: borrowedCount,
+        maintenance: maintenanceCount,
+      });
+    }, (error) => {
+      console.error('Real-time stats error:', error);
+    });
 
-    return () => {
-      isActive = false;
-      clearInterval(intervalId);
-    };
+    return () => unsubscribe();
   }, []);
 
   const handleLogout = async () => {
@@ -122,29 +128,27 @@ export default function DashboardPage() {
         </button>
       </header>
 
-      {/* --- STATS GRID: BENTO ON MOBILE, LINEAR ON DESKTOP --- */}
+      {/* --- STATS GRID --- */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 md:gap-8 flex-1 min-h-0">
 
-        {/* HERO CARD: Bento (spans 2x2) on Mobile, Single Column on Desktop */}
-        <div className={`col-span-2 md:col-span-1 p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] border transition-all flex flex-col justify-between ${isDarkMode ? 'bg-gradient-to-br from-[#3852A4]/20 to-transparent border-[#3852A4]/30' : 'bg-white border-slate-200 shadow-xl'}`}>
+        <div className={`col-span-2 md:col-span-1 p-6 md:p-8 lg:p-10 rounded-[2rem] md:rounded-[3rem] border transition-all flex flex-col justify-between overflow-hidden ${isDarkMode ? 'bg-gradient-to-br from-[#3852A4]/20 to-transparent border-[#3852A4]/30' : 'bg-white border-slate-200 shadow-xl'}`}>
           <span className={`text-xs sm:text-sm font-bold uppercase tracking-wide ${isDarkMode ? 'text-blue-200/60' : 'text-slate-400'}`}>Available</span>
-          <span className="text-7xl md:text-8xl lg:text-9xl font-bold tracking-normal text-[#3852A4]">{stats.available}</span>
+          <span className="text-6xl sm:text-7xl lg:text-8xl font-bold tracking-normal text-[#3852A4] truncate">{stats.available}</span>
         </div>
 
-        <div className={`col-span-1 md:col-span-1 p-5 md:p-10 rounded-[1.5rem] md:rounded-[3rem] border transition-all flex flex-col justify-between ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200 shadow-xl'}`}>
+        <div className={`col-span-1 md:col-span-1 p-5 md:p-8 lg:p-10 rounded-[1.5rem] md:rounded-[3rem] border transition-all flex flex-col justify-between overflow-hidden ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200 shadow-xl'}`}>
           <span className="text-xs sm:text-sm font-bold uppercase tracking-wide opacity-50">Total</span>
-          <span className="text-4xl md:text-8xl font-bold tracking-normal">{stats.total}</span>
+          <span className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-normal truncate">{stats.total}</span>
         </div>
 
-        <div className={`col-span-1 md:col-span-1 p-5 md:p-10 rounded-[1.5rem] md:rounded-[3rem] border transition-all flex flex-col justify-between ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200 shadow-xl'}`}>
+        <div className={`col-span-1 md:col-span-1 p-5 md:p-8 lg:p-10 rounded-[1.5rem] md:rounded-[3rem] border transition-all flex flex-col justify-between overflow-hidden ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200 shadow-xl'}`}>
           <span className="text-xs sm:text-sm font-bold uppercase tracking-wide opacity-50">Borrowed</span>
-          <span className="text-4xl md:text-8xl font-bold tracking-normal">{stats.borrowed}</span>
+          <span className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-normal truncate">{stats.borrowed}</span>
         </div>
 
-        {/* WIDE CARD: Spans 2 columns on Mobile, Single Column on Desktop */}
-        <div className={`col-span-2 md:col-span-1 p-5 md:p-10 rounded-[1.5rem] md:rounded-[3rem] border transition-all flex flex-col justify-between ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200 shadow-xl'}`}>
+        <div className={`col-span-2 md:col-span-1 p-5 md:p-8 lg:p-10 rounded-[1.5rem] md:rounded-[3rem] border transition-all flex flex-col justify-between overflow-hidden ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200 shadow-xl'}`}>
           <span className="text-xs sm:text-sm font-bold uppercase tracking-wide opacity-50">Maintenance</span>
-          <span className="text-4xl md:text-8xl font-bold tracking-normal">{stats.maintenance}</span>
+          <span className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-normal truncate">{stats.maintenance}</span>
         </div>
       </div>
 

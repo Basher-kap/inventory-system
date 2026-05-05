@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, onSnapshot, doc, updateDoc, writeBatch, serverTimestamp, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../firebase/firebase.config';
@@ -36,7 +36,8 @@ export default function AddEquipmentPage() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isModalDropdownOpen, setIsModalDropdownOpen] = useState(false);
 
-  const EQUIPMENT_LIMIT = 200;
+  // Bumped to safely contain massive lists without dropping history
+  const EQUIPMENT_LIMIT = 500;
 
   const dropdownRef = useRef(null);
   const modalDropdownRef = useRef(null);
@@ -52,20 +53,12 @@ export default function AddEquipmentPage() {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
   };
 
-  // NEW: Smart Heuristic Validation for College/Lab Equipment
+  // Smart Heuristic Validation for College/Lab Equipment
   const validateEquipmentName = (itemName) => {
     const term = itemName.toLowerCase().trim();
-
-    // Failsafe: Must have letters, not just numbers or symbols
     if (!/[a-zA-Z]/.test(term)) return false;
-
-    // Semantic Blacklist: Prevents adding vehicles, household appliances, food, animals, etc.
     const blockedPattern = /\b(airplane|jet|helicopter|car|truck|boat|motorcycle|washing machine|laundry|dryer|dishwasher|refrigerator|fridge|freezer|oven|stove|microwave|toaster|blender|dog|cat|pet|weapon|gun|knife|sword|food|pizza|burger|apple|toy)\b/i;
-
-    if (blockedPattern.test(term)) {
-      return false;
-    }
-
+    if (blockedPattern.test(term)) return false;
     return true;
   };
 
@@ -80,7 +73,6 @@ export default function AddEquipmentPage() {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     const img = new Image();
-
     const size = 2048;
 
     img.onload = () => {
@@ -136,12 +128,8 @@ export default function AddEquipmentPage() {
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsDropdownOpen(false);
-      }
-      if (modalDropdownRef.current && !modalDropdownRef.current.contains(event.target)) {
-        setIsModalDropdownOpen(false);
-      }
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) setIsDropdownOpen(false);
+      if (modalDropdownRef.current && !modalDropdownRef.current.contains(event.target)) setIsModalDropdownOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -157,13 +145,10 @@ export default function AddEquipmentPage() {
 
   const handleAddSubmit = (e) => {
     e.preventDefault();
-
-    // Trigger Semantic Validation Check
     if (!validateEquipmentName(name)) {
       showToast("This is not a valid equipment in lab.", 'delete');
       return;
     }
-
     setTrackingModal({ show: true });
   };
 
@@ -184,7 +169,9 @@ export default function AddEquipmentPage() {
           dateAdded: serverTimestamp()
         });
       } else {
-        for (let i = 0; i < itemQuantity; i++) {
+        // Safe-guard to prevent Firestore batch crash
+        const maxSafeBatch = Math.min(itemQuantity, 50);
+        for (let i = 0; i < maxSafeBatch; i++) {
           const docRef = doc(collection(db, 'equipment'));
           const assetTag = `${category.substring(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
           batch.set(docRef, {
@@ -215,11 +202,18 @@ export default function AddEquipmentPage() {
 
     setIsGroupActionLoading(true);
     try {
-      const batch = writeBatch(db);
-      idsToDelete.forEach((id) => {
-        batch.delete(doc(db, 'equipment', id));
-      });
-      await batch.commit();
+      // Chunk deletions if it exceeds Firestore batch limits in extreme cases
+      const chunkedIds = [];
+      for (let i = 0; i < idsToDelete.length; i += 400) {
+        chunkedIds.push(idsToDelete.slice(i, i + 400));
+      }
+
+      for (const chunk of chunkedIds) {
+        const batch = writeBatch(db);
+        chunk.forEach((id) => batch.delete(doc(db, 'equipment', id)));
+        await batch.commit();
+      }
+
       showToast(idsToDelete.length > 1 ? `${idsToDelete.length} items removed.` : "Asset permanently removed.", 'delete');
     } catch (error) {
       console.error(error);
@@ -373,6 +367,7 @@ export default function AddEquipmentPage() {
 
   const parsedQuantity = parseInt(quantity, 10);
   const suggestBulk = !isNaN(parsedQuantity) && parsedQuantity > 1;
+  const isMassiveQuantity = parsedQuantity > 50;
 
   return (
     <div className={`min-h-screen w-full p-4 sm:p-6 md:p-12 lg:p-16 flex flex-col items-center overflow-y-auto relative transition-colors duration-500 ${pageBg}`} style={{ fontFamily: "'Google Sans', 'Product Sans', 'Segoe UI', system-ui, sans-serif" }}>
@@ -404,14 +399,21 @@ export default function AddEquipmentPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <button
                 type="button"
+                disabled={isMassiveQuantity}
                 onClick={() => confirmAddEquipment('individual')}
-                className={`flex flex-col text-left p-6 sm:p-8 rounded-2xl sm:rounded-3xl border transition-all cursor-pointer group ${suggestBulk ? 'hover:border-[#3852A4]/30' : 'border-[#3852A4]/60 shadow-[0_0_20px_rgba(56,82,164,0.15)]'} ${inputBg}`}
+                className={`flex flex-col text-left p-6 sm:p-8 rounded-2xl sm:rounded-3xl border transition-all group
+                  ${isMassiveQuantity
+                    ? 'opacity-30 cursor-not-allowed'
+                    : `cursor-pointer ${suggestBulk ? 'hover:border-[#3852A4]/30' : 'border-[#3852A4]/60 shadow-[0_0_20px_rgba(56,82,164,0.15)]'}`}
+                  ${inputBg}`}
               >
                 <div className="flex justify-between items-start w-full mb-2">
-                  <h4 className={`font-bold uppercase tracking-wide text-sm sm:text-base transition-colors ${suggestBulk ? 'group-hover:text-[#3852A4]' : 'text-[#3852A4]'}`}>Individual</h4>
-                  {!suggestBulk && <span className="text-[10px] font-bold bg-[#3852A4]/10 text-[#3852A4] px-2 py-1 rounded-full uppercase tracking-wide">Suggested</span>}
+                  <h4 className={`font-bold uppercase tracking-wide text-sm sm:text-base transition-colors ${!suggestBulk && !isMassiveQuantity ? 'text-[#3852A4]' : 'group-hover:text-[#3852A4]'}`}>Individual</h4>
+                  {!suggestBulk && !isMassiveQuantity && <span className="text-[10px] font-bold bg-[#3852A4]/10 text-[#3852A4] px-2 py-1 rounded-full uppercase tracking-wide">Suggested</span>}
                 </div>
-                <p className={`text-xs sm:text-sm uppercase tracking-wide leading-relaxed ${isDarkMode ? 'text-white/40' : 'text-slate-400'}`}>Generates a unique QR code for every single unit.</p>
+                <p className={`text-xs sm:text-sm uppercase tracking-wide leading-relaxed ${isDarkMode ? 'text-white/40' : 'text-slate-400'}`}>
+                  {isMassiveQuantity ? "Not available for quantities over 50." : "Generates a unique QR code for every single unit."}
+                </p>
               </button>
 
               <button
@@ -716,7 +718,7 @@ export default function AddEquipmentPage() {
                 }
 
                 return (
-                  <Fragment key={group.key}>
+                  <React.Fragment key={group.key}>
                     <tr className={`transition-all ${isDarkMode ? 'bg-white/[0.05] hover:bg-white/[0.08]' : 'bg-slate-100 hover:bg-slate-200'}`}>
                       <td className={`px-6 sm:px-10 py-4 sm:py-6 font-bold uppercase tracking-wide text-xs sm:text-sm opacity-60 ${assetText} whitespace-nowrap`}>{group.items.length} Units</td>
                       <td className="px-6 sm:px-10 py-4 sm:py-6 text-lg sm:text-xl font-bold whitespace-nowrap">
@@ -847,7 +849,7 @@ export default function AddEquipmentPage() {
                         </td>
                       </tr>
                     ))}
-                  </Fragment>
+                  </React.Fragment>
                 );
               })}
             </tbody>
