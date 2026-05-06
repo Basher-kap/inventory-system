@@ -287,8 +287,8 @@ export default function ReviewBorrowLogs() {
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full md:w-auto">
           {overdueCount > 0 && (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-500 px-6 py-3.5 rounded-[1.25rem] animate-pulse whitespace-nowrap text-center">
-              <span className="font-bold text-xs sm:text-sm uppercase tracking-wide">⚠️ {overdueCount} Overdue Item{overdueCount > 1 ? 's' : ''}</span>
+            <div className={`px-4 py-2.5 rounded-[1.25rem] border whitespace-nowrap text-center ${isDarkMode ? 'bg-red-500/5 border-red-500/10 text-red-400' : 'bg-red-50 border-red-100 text-red-500'}`}>
+              <span className="font-bold text-[10px] sm:text-xs uppercase tracking-[0.2em] opacity-75">{overdueCount} overdue item{overdueCount > 1 ? 's' : ''}</span>
             </div>
           )}
 
@@ -393,10 +393,12 @@ export default function ReviewBorrowLogs() {
 
                           <button
                             onClick={() => initiateDelete(log.id)}
-                            className={`text-[10px] font-bold uppercase tracking-widest p-2 sm:p-2.5 rounded-full transition-all opacity-40 hover:opacity-100 hover:bg-red-500/10 hover:text-red-500 cursor-pointer ${isDarkMode ? 'text-white' : 'text-slate-500'}`}
+                            className="text-red-500/60 hover:text-red-400 transition-all cursor-pointer"
+                            aria-label="Delete"
                             title="Delete Log"
                           >
-                            Delete
+                            <span className="material-icons-outlined text-base sm:text-lg" aria-hidden="true">delete</span>
+                            <span className="sr-only">Delete</span>
                           </button>
                         </div>
                       </td>
