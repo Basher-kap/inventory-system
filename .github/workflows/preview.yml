@@ -1,0 +1,134 @@
+name: Preview Deployment
+
+on:
+  push:
+    branches:
+      - preview-e2e
+      - "feature/**"
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+permissions:
+  contents: read
+  pull-requests: write # needed to post preview URL as a PR comment
+
+concurrency:
+  group: preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-preview:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: inventory-system
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: inventory-system/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build Project
+        run: npm run build
+        env:
+          VITE_APP_URL: ${{ secrets.VITE_APP_URL }}
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+
+      # Derive a safe Firebase channel name from branch or PR number.
+      # Firebase only allows letters, numbers, hyphens — max 20 characters.
+      - name: Derive preview channel name
+        id: channel
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            CHANNEL="pr-${{ github.event.pull_request.number }}"
+          else
+            CHANNEL=$(echo "${{ github.ref_name }}" \
+              | tr '/_' '-' \
+              | tr '[:upper:]' '[:lower:]' \
+              | cut -c1-20)
+          fi
+          echo "name=$CHANNEL" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy to Firebase Hosting preview channel
+        id: preview
+        run: |
+          OUTPUT=$(npx firebase-tools@13.22.0 hosting:channel:deploy "${{ steps.channel.outputs.name }}" \
+            --expires 7d \
+            --json 2>/dev/null || \
+            npx firebase-tools@13.22.0 hosting:channel:deploy "${{ steps.channel.outputs.name }}" --expires 7d)
+          URL=$(echo "$OUTPUT" | python3 -c "
+          import sys, json
+          try:
+              data = json.load(sys.stdin)
+              project = list(data['result'].keys())[0]
+              print(data['result'][project]['url'])
+          except:
+              pass
+          ")
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+      # Post or update a single preview comment on the PR — no spam
+      - name: Comment preview URL on PR
+        if: github.event_name == 'pull_request' && steps.preview.outputs.url != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = "${{ steps.preview.outputs.url }}";
+            const channel = "${{ steps.channel.outputs.name }}";
+            const body = [
+              "### 🔍 Preview Deployment Ready",
+              "",
+              `**Channel:** \`${channel}\``,
+              `**URL:** ${url}`,
+              "",
+              "_This preview expires in 7 days and updates on every push to this PR._"
+            ].join("\n");
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existing = comments.find(c =>
+              c.user.login === "github-actions[bot]" &&
+              c.body.includes("Preview Deployment Ready")
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
